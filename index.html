@@ -85,7 +85,10 @@
   .field label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 5px; }
   .two { display: flex; gap: 10px; } .two > * { flex: 1; min-width: 0; }
   .hexrow { display: flex; gap: 8px; align-items: stretch; }
-  .hexrow input[type=text] { flex: 1; font-family: monospace; }
+  .hexin { flex: 1; min-width: 0; display: flex; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding-left: 12px; }
+  .hexin:focus-within { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .hexin span { color: var(--muted); font-family: monospace; font-size: 1.1rem; }
+  .hexin input[type=text] { flex: 1; min-width: 0; border: none; background: transparent; padding: 11px 8px 11px 4px; font-family: monospace; outline: none; }
   .hexrow input[type=color] { width: 54px; height: auto; padding: 2px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; }
   .hexrow .btn { padding: 0 12px; font-size: .85rem; }
   .preview { height: 14px; border-radius: 999px; margin-top: 8px; border: 1px solid var(--border); }
@@ -144,7 +147,7 @@
     <div class="field">
       <label>Farbcode (Hex)</label>
       <div class="hexrow">
-        <input type="text" id="f-hex" placeholder="#RRGGBB" maxlength="7" autocomplete="off">
+        <div class="hexin"><span>#</span><input type="text" id="f-hex" placeholder="RRGGBB" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
         <input type="color" id="f-picker" value="#808080" aria-label="Farbkreis">
         <button class="btn sec" id="f-search" type="button">Hex suchen</button>
       </div>
@@ -320,7 +323,7 @@
     var v = {}; VARIANTEN.forEach(function (x) { v[x] = 1; }); spools.forEach(function (s) { if (s.variante) v[s.variante] = 1; });
     $('dl-variante').innerHTML = Object.keys(v).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('');
   }
-  var famManual = false;
+  var famManual = false, startManual = false;
   function updatePreview() {
     var hex = normHex($('f-hex').value);
     $('f-preview').style.background = hex || 'transparent';
@@ -337,11 +340,12 @@
     $('f-material').value = s ? s.material : 'PLA';
     $('f-variante').value = s ? (s.variante || '') : '';
     $('f-farbe').value = s ? s.farbe : '';
-    $('f-hex').value = s ? (s.hex || '') : '';
+    $('f-hex').value = s && s.hex ? s.hex.slice(1) : '';
     $('f-start').value = s ? s.start : 1000;
     $('f-rest').value = s ? s.rest : '';
     $('f-anzahl').value = s ? (s.anzahl || 1) : 1;
     famManual = !!s;
+    startManual = !!s;
     updatePreview();
     if (s) $('f-familie').value = s.familie;
     $('form-ov').classList.add('show');
@@ -398,11 +402,24 @@
   $('fab').addEventListener('click', function () { openForm(); });
   $('f-cancel').addEventListener('click', function () { $('form-ov').classList.remove('show'); });
   $('f-save').addEventListener('click', saveForm);
-  $('f-hex').addEventListener('input', updatePreview);
-  $('f-picker').addEventListener('input', function () { $('f-hex').value = this.value; updatePreview(); });
+  // Raute ist fest davor: eingefügter Text darf mit oder ohne "#" kommen,
+  // enthaltener 6-stelliger Code wird herausgezogen, alles andere verworfen.
+  $('f-hex').addEventListener('input', function () {
+    var v = this.value, m = v.match(/#?([0-9a-fA-F]{6})(?![0-9a-fA-F])/);
+    this.value = m ? m[1] : v.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
+    updatePreview();
+  });
+  $('f-picker').addEventListener('input', function () { $('f-hex').value = this.value.slice(1); updatePreview(); });
+  // Rollengewicht je Hersteller vorbelegen (nur solange nicht von Hand geändert)
+  var START_BY_HERSTELLER = { 'jayo': 1100 };
+  $('f-start').addEventListener('input', function () { startManual = true; });
+  $('f-hersteller').addEventListener('input', function () {
+    if (startManual) return;
+    $('f-start').value = START_BY_HERSTELLER[this.value.trim().toLowerCase()] || 1000;
+  });
   $('f-familie').addEventListener('change', function () { famManual = true; });
   $('f-search').addEventListener('click', function () {
-    var q = ($('f-hersteller').value + ' ' + $('f-material').value + ' ' + $('f-variante').value + ' ' + $('f-farbe').value).replace(/\s+/g, ' ').trim() + ' filament hex color code';
+    var q = ($('f-hersteller').value + ' ' + $('f-material').value + ' ' + $('f-variante').value + ' ' + $('f-farbe').value).replace(/\s+/g, ' ').trim() + ' filament Hex-Code und Grundfarbe';
     window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank');
   });
 
