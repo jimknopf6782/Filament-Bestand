@@ -1,3422 +1,459 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tf-Assistent</title>
-  
-  <!-- Einstellungen für Web-App / PWA -->
-  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#f1f5f9" media="(prefers-color-scheme: light)">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Tf-Assistent">
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <script src="js/lok-db.js"></script>
-
-  <style>
-    /* Hochformat erzwingen: Das Manifest ("orientation": "portrait") sperrt
-       die Drehung nur, wenn die App auf Android zum Startbildschirm
-       hinzugefügt wurde — Safari auf dem iPhone ignoriert das komplett.
-       Dieser CSS-Hinweis greift deshalb überall zusätzlich, auch im
-       normalen Browser-Tab: Sobald das Gerät quer liegt, wird die
-       eigentliche App verdeckt und zum Zurückdrehen aufgefordert. */
-    #orientation-lock-overlay {
-      display: none;
-    }
-    @media (orientation: landscape) {
-      #orientation-lock-overlay {
-        display: flex;
-        position: fixed;
-        inset: 0;
-        z-index: 9999;
-        background: #0f172a;
-        color: #fff;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 24px;
-        font-size: 1.1rem;
-      }
-      #app-root {
-        display: none;
-      }
-    }
-    :root {
-      --bg: #0f172a;
-      --card-bg: #1e293b;
-      --accent: #dc2626;
-      --accent-hover: #b91c1c;
-      --danger: #ef4444;
-      --text: #f8fafc;
-      --text-muted: #cbd5e1;
-      --border: #334155;
-      --input-bg: #0f172a;
-    }
-
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #f1f5f9;
-        --card-bg: #ffffff;
-        --accent: #dc2626;
-        --accent-hover: #b91c1c;
-        --danger: #ef4444;
-        --text: #0f172a;
-        --text-muted: #475569;
-        --border: #e2e8f0;
-        --input-bg: #f8fafc;
-      }
-    }
-
-    html {
-      -webkit-text-size-adjust: 100%;
-      text-size-adjust: 100%;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-
-    html {
-      -webkit-text-size-adjust: 100%;
-      text-size-adjust: 100%;
-      overflow-x: hidden;
-    }
-
-    body {
-      background-color: var(--bg);
-      color: var(--text);
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      overflow-x: hidden;
-    }
-
-    .container {
-      width: 100%;
-      max-width: 500px;
-    }
-
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      margin-bottom: 20px;
-      min-height: 32px;
-    }
-
-    h1 {
-      font-size: 1.5rem;
-      color: var(--accent);
-      text-align: center;
-    }
-
-    #header-back-btn {
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: var(--accent);
-      font-size: 1.6rem;
-      line-height: 1;
-      padding: 4px 10px 4px 0;
-      cursor: pointer;
-    }
-
-    #header-settings-btn {
-      position: absolute;
-      right: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: var(--accent);
-      font-size: 1.3rem;
-      line-height: 1;
-      padding: 4px 0 4px 10px;
-      cursor: pointer;
-    }
-
-    /* Startbildschirm: Kachel-Navigation */
-    .home-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .home-tile {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      flex: 0 0 calc(50% - 6px);
-      max-width: calc(50% - 6px);
-      aspect-ratio: 1 / 1;
-      background-color: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      padding: 12px;
-      text-align: center;
-    }
-
-    .home-tile-badge {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--input-bg);
-    }
-
-    .home-tile:active {
-      background-color: rgba(220, 38, 38, 0.12);
-      border-color: var(--accent);
-    }
-
-    .home-tile-icon {
-      font-size: 2.2rem;
-      line-height: 1;
-      color: var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .home-tile-icon svg {
-      display: block;
-    }
-
-    .home-tile-label {
-      font-weight: 700;
-      font-size: 0.9rem;
-      color: var(--text);
-    }
-
-    /* Formulare & Bereiche */
-    .tab-content {
-      display: none;
-      background-color: var(--card-bg);
-      padding: 20px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 6px;
-      font-size: 0.85rem;
-      color: var(--text);
-    }
-
-    input, select {
-      width: 100%;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background-color: var(--input-bg);
-      color: var(--text);
-      font-size: 1rem;
-    }
-
-    .time-inputs {
-      display: flex;
-      gap: 10px;
-    }
-
-    /* Ergebnis-Boxen */
-    .result-box {
-      margin-top: 20px;
-      padding: 16px;
-      border-radius: 8px;
-      background-color: var(--input-bg);
-      display: none;
-    }
-
-    .result-box.visible {
-      display: block;
-    }
-
-    .result-title {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      color: var(--text);
-      margin-bottom: 4px;
-    }
-
-    .result-value {
-      font-size: 1.4rem;
-      font-weight: bold;
-      color: var(--accent);
-    }
-
-    .zeit-dual-row {
-      display: flex;
-      gap: 12px;
-    }
-
-    .zeit-dual-box {
-      flex: 1;
-      text-align: center;
-    }
-
-    .zeit-dual-label {
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      color: var(--text-muted);
-      margin-bottom: 2px;
-    }
-
-    .zeit-dual-value {
-      font-size: 1.05rem;
-      font-weight: bold;
-    }
-
-    button.calc-btn {
-      width: 100%;
-      padding: 14px;
-      background-color: var(--accent);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      font-size: 1rem;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-
-    button.calc-btn:active {
-      opacity: 0.9;
-    }
-
-    /* Modul 3: Bremsberechnung (Ril 408) */
-    /* Modul 3: Bremsberechnung (Ril 408 / BRW-EVU) */
-    .rule-switcher {
-      display: flex;
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 2px;
-      margin-top: 12px;
-    }
-
-    .rule-btn {
-      flex: 1;
-      padding: 7px 4px;
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 0.78rem;
-      font-weight: 600;
-      border-radius: 5px;
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.2s;
-    }
-
-    .rule-btn.active {
-      background: rgba(220, 38, 38, 0.12);
-      color: var(--accent);
-    }
-
-    .section-card {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px;
-      margin-bottom: 16px;
-    }
-
-    .section-title {
-      font-size: 0.95rem;
-      font-weight: 700;
-      margin-bottom: 12px;
-      color: var(--accent);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .lok-carousel {
-      display: flex;
-      overflow-x: auto;
-      scroll-snap-type: x mandatory;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-      gap: 10px;
-      margin: 0 -2px;
-      padding: 2px;
-    }
-
-    .lok-carousel::-webkit-scrollbar {
-      display: none;
-    }
-
-    .lok-item {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-      flex: 0 0 100%;
-      scroll-snap-align: start;
-      box-sizing: border-box;
-    }
-
-    .lok-add-card {
-      flex: 0 0 100%;
-      scroll-snap-align: start;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      border: 2px dashed var(--border);
-      border-radius: 8px;
-      min-height: 180px;
-      color: var(--accent);
-      cursor: pointer;
-      background: none;
-      font-weight: 600;
-      font-size: 0.9rem;
-    }
-
-    .lok-dots {
-      display: flex;
-      justify-content: center;
-      gap: 6px;
-      margin-top: 10px;
-    }
-
-    .lok-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--border);
-    }
-
-    .lok-dot.active {
-      background: var(--accent);
-    }
-
-    .lok-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-
-    .btn-remove {
-      background: transparent;
-      border: none;
-      color: var(--danger);
-      font-size: 1.2rem;
-      cursor: pointer;
-      padding: 0 4px;
-    }
-
-    .gpr-toggle {
-      display: flex;
-      gap: 6px;
-      margin-top: 4px;
-    }
-
-    .gpr-btn {
-      flex: 1;
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 8px 0;
-      border-radius: 6px;
-      font-weight: 700;
-      font-size: 0.9rem;
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.2s;
-    }
-
-    .gpr-btn.active {
-      background: var(--accent);
-      color: #ffffff;
-      border-color: var(--accent);
-    }
-
-    .btn-add {
-      width: 100%;
-      background: transparent;
-      border: 1px dashed var(--accent);
-      color: var(--accent);
-      padding: 10px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.9rem;
-      cursor: pointer;
-      margin-top: 4px;
-    }
-
-    .btn-add:disabled {
-      border-color: var(--border);
-      color: var(--text-muted);
-      cursor: not-allowed;
-    }
-
-    .result-card {
-      background: var(--input-bg);
-      border-radius: 8px;
-      padding: 16px;
-      text-align: center;
-      display: none;
-    }
-
-    .result-card.visible {
-      display: block;
-    }
-
-    .result-main {
-      font-size: 2.4rem;
-      font-weight: 800;
-      color: var(--accent);
-      line-height: 1.1;
-      margin: 8px 0;
-    }
-
-    .result-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 14px;
-      padding-top: 12px;
-      border-top: 1px solid var(--border);
-      text-align: left;
-    }
-
-    .result-item {
-      font-size: 0.8rem;
-    }
-
-    .result-item span {
-      display: block;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-    }
-
-    .result-item strong {
-      font-size: 0.95rem;
-      color: var(--text);
-    }
-
-    .result-breakdown {
-      margin-top: 12px;
-      padding-top: 10px;
-      border-top: 1px solid var(--border);
-      text-align: left;
-    }
-
-    .breakdown-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 0;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    .breakdown-row strong {
-      color: var(--text);
-      font-weight: 600;
-      font-size: 0.9rem;
-    }
-
-    .breakdown-total {
-      margin-top: 4px;
-      padding-top: 8px;
-      border-top: 1px dashed var(--border);
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .breakdown-total strong {
-      color: var(--accent);
-      font-size: 1rem;
-    }
-
-    .result-longabzug {
-      margin-top: 10px;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      text-align: left;
-    }
-
-    .badge-info {
-      display: inline-block;
-      background: rgba(220, 38, 38, 0.15);
-      color: var(--accent);
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      margin-top: 8px;
-    }
-
-    /* Modul 4: Betriebsstellen-Suche (Ril 100) */
-    .bst-status-line {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-bottom: 10px;
-    }
-
-    .bst-item {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
-    }
-
-    .bst-item-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .bst-item-right {
-      display: flex;
-      align-items: center;
-      flex-shrink: 0;
-    }
-
-    .bst-code {
-      font-weight: 700;
-      font-size: 1rem;
-      color: var(--accent);
-      letter-spacing: 0.5px;
-    }
-
-    .bst-land {
-      display: inline-block;
-      width: 26px;
-      flex-shrink: 0;
-      text-align: center;
-      font-size: 1rem;
-    }
-
-    .bst-kat {
-      display: inline-block;
-      width: 64px;
-      flex-shrink: 0;
-      text-align: right;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .bst-name {
-      font-size: 0.9rem;
-      margin-top: 4px;
-    }
-
-    .bst-distance {
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    .bst-status-badge {
-      display: inline-block;
-      margin-top: 6px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      color: var(--danger);
-      background: rgba(239, 68, 68, 0.12);
-      padding: 2px 8px;
-      border-radius: 4px;
-    }
-
-    .bst-empty {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      text-align: center;
-      padding: 20px 0;
-    }
-
-    .bst-data-stand {
-      margin-top: 14px;
-      padding-top: 10px;
-      border-top: 1px solid var(--border);
-      font-size: 0.72rem;
-      color: var(--text-muted);
-    }
-
-    /* Modul 5: Fahrtenbuch */
-    .fb-status-box {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px;
-      margin-bottom: 16px;
-      text-align: center;
-    }
-
-    .fb-status-label {
-      font-size: 1.1rem;
-      font-weight: 700;
-    }
-
-    .fb-status-detail {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    .fb-main-btn {
-      display: block;
-      width: 100%;
-      padding: 18px;
-      border: none;
-      border-radius: 12px;
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: #ffffff;
-      cursor: pointer;
-      margin-bottom: 20px;
-    }
-
-    .fb-btn-start {
-      background-color: #16a34a;
-    }
-
-    .fb-btn-stop {
-      background-color: var(--accent);
-    }
-
-    .fb-btn-end {
-      background-color: #475569;
-    }
-
-    #fb-btn-row-single .fb-main-btn,
-    #fb-btn-row-double .fb-main-btn {
-      margin-bottom: 0;
-    }
-
-    #fb-btn-row-single,
-    #fb-btn-row-double {
-      margin-bottom: 20px;
-    }
-
-    .fb-btn-row-inner {
-      display: flex;
-      gap: 10px;
-    }
-
-    #fb-main-btn {
-      flex: 3;
-      min-width: 0;
-    }
-
-    .fb-ping-btn {
-      flex: 1;
-      min-width: 0;
-      padding: 18px 2px;
-      border: none;
-      border-radius: 12px;
-      font-size: 1.9rem;
-      line-height: 1;
-      font-weight: 700;
-      color: #ffffff;
-      background-color: #0d9488;
-      cursor: pointer;
-    }
-
-    .fb-log-header {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-    }
-
-    .fb-log-header-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .fb-totals {
-      font-size: 0.8rem;
-    }
-
-    .fb-log-entry {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
-      font-size: 0.85rem;
-    }
-
-    .fb-log-entry-top {
-      display: flex;
-      justify-content: space-between;
-      font-weight: 600;
-      cursor: pointer;
-      list-style: none;
-    }
-
-    .fb-log-entry-top::-webkit-details-marker {
-      display: none;
-    }
-
-    .fb-log-entry-exact {
-      border-top: 1px dashed var(--border);
-      margin-top: 6px;
-      padding-top: 6px;
-    }
-
-    .fb-log-fahrt .fb-log-entry-top {
-      color: var(--accent);
-    }
-
-    .fb-log-stand .fb-log-entry-top {
-      color: var(--text-muted);
-    }
-
-    .fb-log-entry-detail {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      margin-top: 3px;
-    }
-
-    .fb-shift-entry {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
-    }
-
-    .fb-shift-entry-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
-
-    .fb-shift-entry-detail {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      margin-top: 3px;
-      margin-bottom: 8px;
-    }
-
-    .fb-shift-segments {
-      margin-top: 4px;
-    }
-
-    .fb-shift-segments summary {
-      font-size: 0.75rem;
-      color: var(--accent);
-      font-weight: 600;
-      cursor: pointer;
-      list-style: none;
-    }
-
-    .fb-shift-segments summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .fb-shift-segments[open] summary {
-      margin-bottom: 8px;
-    }
-
-    .fb-shift-export-btn {
-      flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      border-radius: 6px;
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
-      font-size: 1rem;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* Schwebender "Nach oben"-Button — nur sichtbar, sobald weit genug runter-
-       gescrollt wurde (siehe scroll-Listener weiter unten im Script), damit
-       man bei langen Listen (z. B. viele beobachtete Strecken) nicht mühsam
-       zurückscrollen muss. */
-    #scroll-top-btn {
-      display: none;
-      position: fixed;
-      right: 18px;
-      bottom: 18px;
-      z-index: 500;
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      border: none;
-      background: var(--accent);
-      color: #ffffff;
-      font-size: 1.3rem;
-      line-height: 1;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    }
-
-    #scroll-top-btn.visible {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .fb-route-search-summary {
-      background: rgba(220, 38, 38, 0.06);
-      border: 1px solid var(--accent);
-      border-radius: 8px;
-      padding: 8px 12px;
-      margin-bottom: 8px;
-      font-size: 0.8rem;
-      color: var(--text);
-      line-height: 1.5;
-    }
-
-    .fb-route-entry-compact {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      margin-bottom: 8px;
-      overflow: hidden;
-    }
-
-    .fb-route-row-compact {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 10px 12px;
-      cursor: pointer;
-    }
-
-    .fb-route-chevron {
-      flex-shrink: 0;
-      color: var(--text-muted);
-      font-size: 0.7rem;
-      width: 12px;
-      margin-top: 3px;
-    }
-
-    .fb-route-text-compact {
-      flex: 1;
-      min-width: 0;
-    }
-
-    /* Voller Name, kein Abschneiden mit "…" mehr — bricht bei Bedarf um,
-       statt ausgerechnet am entscheidenden Wort gekürzt zu werden. */
-    .fb-route-title-compact {
-      font-size: 0.85rem;
-      font-weight: 600;
-      white-space: normal;
-      overflow-wrap: break-word;
-    }
-
-    .fb-route-avg-compact {
-      display: block;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .fb-route-detail-expanded {
-      padding: 0 12px 10px 12px;
-      border-top: 1px solid var(--border);
-      padding-top: 8px;
-    }
-
-    .fb-route-delete-btn-inline {
-      margin-top: 8px;
-      width: 100%;
-      font-size: 0.75rem;
-      padding: 7px 10px;
-      border-radius: 6px;
-      border: 1px solid var(--danger);
-      background: var(--card-bg);
-      color: var(--danger);
-      cursor: pointer;
-    }
-
-
-
-
-
-    .fb-footer-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 18px;
-    }
-
-    .fb-picker-title {
-      font-weight: 700;
-      margin-bottom: 10px;
-    }
-
-    .fb-edit-link {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      cursor: pointer;
-    }
-
-    .fb-edit-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .fb-edit-row-label {
-      font-size: 0.85rem;
-    }
-
-    .fb-edit-row-label small {
-      display: block;
-      color: var(--text-muted);
-      font-size: 0.72rem;
-    }
-
-    .fb-edit-row input[type="time"] {
-      width: auto;
-      padding: 8px;
-    }
-
-    .fb-default-tag {
-      font-size: 0.7rem;
-      font-weight: 700;
-      color: var(--accent);
-      background: rgba(220, 38, 38, 0.1);
-      padding: 2px 8px;
-      border-radius: 4px;
-    }
-
-    .fb-picker-default-wrap {
-      margin-bottom: 12px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Filament-Bestand</title>
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Filament">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --card2: #273449; --accent: #38bdf8;
+    --text: #f8fafc; --muted: #94a3b8; --border: #334155; --danger: #f87171; --ok: #4ade80;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); padding: 12px 12px 90px; display: flex; justify-content: center; }
+  .container { width: 100%; max-width: 560px; }
+
+  header { position: relative; text-align: center; margin: 4px 0 14px; }
+  header h1 { font-size: 1.4rem; color: var(--accent); }
+  #settings-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--accent); font-size: 1.4rem; padding: 6px 4px 6px 12px; cursor: pointer; }
+
+  input, select, button, textarea { font-size: 1rem; }
+  input[type=text], input[type=number], input[type=search], select {
+    width: 100%; padding: 11px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: #fff; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+  /* Filter */
+  .filters { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin-bottom: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { border: 1px solid var(--border); background: var(--bg); color: var(--muted); border-radius: 999px; padding: 7px 13px; font-weight: 600; font-size: .88rem; cursor: pointer; }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #0f172a; }
+  .chip small { opacity: .75; font-weight: 500; margin-left: 3px; }
+  .row-label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: 10px; }
+  .dots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .dot-btn { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; position: relative; padding: 0; }
+  .dot-btn.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+  .dot-btn span { position: absolute; right: -4px; top: -6px; background: var(--card2); color: var(--text); font-size: .62rem; border-radius: 999px; padding: 1px 5px; border: 1px solid var(--border); }
+  .filter-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: .85rem; color: var(--muted); }
+  .link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: .85rem; }
+  .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggle input { width: auto; }
+
+  /* Karten */
+  .spool { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow: hidden; }
+  .spool.empty { opacity: .55; }
+  .spool-main { display: flex; gap: 12px; padding: 12px; align-items: center; cursor: pointer; }
+  .swatch { width: 46px; height: 46px; border-radius: 50%; border: 2px solid rgba(255,255,255,.18); flex: none; box-shadow: inset 0 0 0 3px rgba(0,0,0,.18); }
+  .info { flex: 1; min-width: 0; }
+  .info .name { font-weight: 700; font-size: 1.02rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .info .sub { color: var(--muted); font-size: .82rem; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rest { margin-top: 7px; }
+  .rest-line { display: flex; justify-content: space-between; font-size: .85rem; }
+  .rest-line b { font-size: 1.02rem; }
+  .bar { height: 6px; background: var(--bg); border-radius: 999px; margin-top: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--ok); border-radius: 999px; }
+  .bar i.mid { background: #fbbf24; } .bar i.low { background: var(--danger); }
+  .badge { background: var(--card2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; font-size: .75rem; margin-left: 6px; color: var(--text); }
+
+  .actions { display: none; border-top: 1px solid var(--border); padding: 12px; background: var(--card2); }
+  .spool.open .actions { display: block; }
+  .deduct { display: flex; gap: 8px; }
+  .deduct input { flex: 1; }
+  .btn { border: none; border-radius: 8px; padding: 11px 16px; font-weight: 700; cursor: pointer; background: var(--accent); color: #0f172a; }
+  .btn.sec { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  .btn.danger { background: var(--bg); color: var(--danger); border: 1px solid var(--border); }
+  .action-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .action-row .btn { flex: 1; padding: 9px 10px; font-size: .88rem; }
+  .hint { color: var(--muted); font-size: .8rem; margin-top: 6px; }
+
+  .none { text-align: center; color: var(--muted); padding: 30px 10px; }
+
+  #fab { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); width: 58px; height: 58px; border-radius: 50%; border: none; background: var(--accent); color: #0f172a; font-size: 2rem; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,.5); cursor: pointer; }
+
+  /* Formular-Overlay */
+  .overlay { position: fixed; inset: 0; background: rgba(2,6,23,.75); display: none; z-index: 20; align-items: flex-end; justify-content: center; }
+  .overlay.show { display: flex; }
+  .sheet { background: var(--card); width: 100%; max-width: 560px; max-height: 94vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 16px; border: 1px solid var(--border); }
+  .sheet h2 { font-size: 1.15rem; margin-bottom: 12px; color: var(--accent); }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 5px; }
+  .two { display: flex; gap: 10px; } .two > * { flex: 1; min-width: 0; }
+  .hexrow { display: flex; gap: 8px; align-items: stretch; }
+  .hexin { flex: 1; min-width: 0; display: flex; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding-left: 12px; }
+  .hexin:focus-within { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .hexin span { color: var(--muted); font-family: monospace; font-size: 1.1rem; }
+  .hexin input[type=text] { flex: 1; min-width: 0; border: none; background: transparent; padding: 11px 8px 11px 4px; font-family: monospace; outline: none; }
+  .hexrow input[type=color] { width: 54px; height: auto; padding: 2px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; }
+  .hexrow .btn { padding: 0 12px; font-size: .85rem; }
+  .preview { height: 14px; border-radius: 999px; margin-top: 8px; border: 1px solid var(--border); }
+  .sheet-actions { display: flex; gap: 10px; margin-top: 8px; }
+  .sheet-actions .btn { flex: 1; }
+
+  #toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: var(--card2); border: 1px solid var(--border); padding: 10px 16px; border-radius: 10px; font-size: .9rem; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 40; max-width: 90%; text-align: center; }
+  #toast.show { opacity: 1; }
+</style>
 </head>
 <body>
+<div class="container">
+  <header>
+    <h1>Filament-Bestand</h1>
+    <button id="settings-btn" aria-label="Daten sichern" title="Daten sichern">⚙</button>
+  </header>
 
-  <div id="orientation-lock-overlay">
-    <div style="font-size: 2.5rem; margin-bottom: 12px;">📱↻</div>
-    <div>Bitte das Gerät ins Hochformat drehen.</div>
-  </div>
-
-  <button id="scroll-top-btn" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Nach oben" aria-label="Nach oben">↑</button>
-
-  <div id="app-root" class="container">
-    <header>
-      <button id="header-back-btn" style="display: none;" onclick="goHome()">‹</button>
-      <h1 id="app-header-title">Tf-Assistent</h1>
-      <button id="header-settings-btn" style="display: none;" onclick="appOpenSettings()" title="Datensicherung" aria-label="Datensicherung">⋮</button>
-    </header>
-
-    <!-- Startbildschirm: Kachel-Navigation -->
-    <div id="home-screen" class="tab-content active">
-      <div class="home-grid">
-        <button class="home-tile" onclick="openModule('brems408')">
-          <span class="home-tile-icon">
-            <svg viewBox="0 0 64 64" width="52" height="52" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-              <g transform="scale(0.19)" stroke-width="12">
-                <path d="M 80 35 C 45 65 45 175 80 205 L 135 205 C 105 165 105 75 135 35 Z" />
-                <circle cx="82" cy="120" r="14" stroke-width="10" />
-                <path d="M 165 35 C 135 75 135 165 165 205 L 195 205 C 165 165 165 75 195 35 Z" />
-              </g>
-              <rect x="40.5" y="39.75" width="18" height="18" rx="3" stroke-width="2.5"/>
-              <line x1="43.5" y1="45.75" x2="55.5" y2="45.75" stroke-width="2"/>
-              <circle cx="44.5" cy="49.75" r="1" fill="currentColor" stroke="none"/>
-              <circle cx="49.5" cy="49.75" r="1" fill="currentColor" stroke="none"/>
-              <circle cx="54.5" cy="49.75" r="1" fill="currentColor" stroke="none"/>
-              <circle cx="44.5" cy="53.75" r="1" fill="currentColor" stroke="none"/>
-              <circle cx="49.5" cy="53.75" r="1" fill="currentColor" stroke="none"/>
-              <circle cx="54.5" cy="53.75" r="1" fill="currentColor" stroke="none"/>
-            </svg>
-          </span>
-          <span class="home-tile-label">Bremsberechnung</span>
-        </button>
-        <button class="home-tile" onclick="openModule('bremse')">
-          <span class="home-tile-icon">
-            <svg viewBox="0 0 64 64" width="52" height="52">
-              <g transform="scale(0.098462) translate(125,0)" fill="currentColor">
-                <path d="M 55 105 L 55 160 L 345 160" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M 191 160 L 191 380 Q 191 435 80 475 C 50 485 40 495 40 515 L 40 535 Q 200 495 360 535 L 360 515 C 360 495 350 485 320 475 Q 209 435 209 380 L 209 160 Z"/>
-                <path d="M 40 565 Q 200 525 360 565 L 360 600 Q 200 560 40 600 Z"/>
-              </g>
-            </svg>
-          </span>
-          <span class="home-tile-label">Festhaltekraft</span>
-        </button>
-        <button class="home-tile" onclick="openModule('bst')">
-          <span class="home-tile-icon">
-            <svg viewBox="0 0 64 64" width="52" height="52" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M32 6 C20 6 11 15.5 11 27 C11 42 32 58 32 58 C32 58 53 42 53 27 C53 15.5 44 6 32 6 Z"/>
-              <circle cx="32" cy="26" r="8"/>
-            </svg>
-          </span>
-          <span class="home-tile-label">Betriebsstellen</span>
-        </button>
-        <button class="home-tile" style="position: relative;" onclick="openModule('fahrtenbuch')">
-          <span id="fb-badge" class="home-tile-badge" style="display: none;"></span>
-          <span class="home-tile-icon">
-            <svg viewBox="0 0 64 64" width="52" height="52" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="12" y="7" width="40" height="50" rx="4"/>
-              <line x1="20" y1="20" x2="44" y2="20"/>
-              <line x1="20" y1="30" x2="44" y2="30"/>
-              <line x1="20" y1="40" x2="34" y2="40"/>
-              <circle cx="41" cy="43" r="7"/>
-              <line x1="41" y1="39" x2="41" y2="43"/>
-              <line x1="41" y1="43" x2="44" y2="45"/>
-            </svg>
-          </span>
-          <span class="home-tile-label">Fahrtenbuch</span>
-        </button>
-        <button class="home-tile" onclick="openModule('zeit')">
-          <span class="home-tile-icon">
-            <svg viewBox="0 0 64 64" width="52" height="52" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="32" cy="34" r="22"/>
-              <line x1="32" y1="34" x2="32" y2="20"/>
-              <line x1="32" y1="34" x2="43" y2="34"/>
-              <line x1="32" y1="14" x2="32" y2="17"/>
-              <line x1="32" y1="51" x2="32" y2="54"/>
-              <line x1="15" y1="34" x2="18" y2="34"/>
-              <line x1="46" y1="34" x2="49" y2="34"/>
-            </svg>
-          </span>
-          <span class="home-tile-label">Zeitdifferenz</span>
-        </button>
-      </div>
+  <div class="filters">
+    <input type="search" id="q" placeholder="Suchen: Name, Hersteller …" autocomplete="off">
+    <div class="row-label" id="lbl-mat">Material</div>
+    <div class="chips" id="mat-chips"></div>
+    <div id="var-wrap" style="display:none">
+      <div class="row-label">Variante</div>
+      <div class="chips" id="var-chips"></div>
     </div>
-
-    <!-- Modul 1: Festhaltebremse -->
-    <div id="tab-bremse" class="tab-content">
-      <div id="result-bremse" class="result-box" style="margin-bottom: 18px;">
-        <div class="result-title">Erforderliche Festhaltekraft</div>
-        <div id="bremse-wert" class="result-value">-</div>
-      </div>
-
-      <div class="form-group">
-        <label for="zuggewicht">Zuggewicht (in Tonnen):</label>
-        <input type="text" inputmode="numeric" id="zuggewicht" placeholder="z. B. 1200" oninput="berechneBremse()" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('neigung').focus();}">
-      </div>
-
-      <div class="form-group">
-        <label for="neigung">Maßgebende Neigung (in ‰)</label>
-        <input type="text" inputmode="decimal" id="neigung" placeholder="2,5" oninput="berechneBremse()" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()">
-      </div>
-    </div>
-
-    <!-- Modul 2: Zeitdifferenz -->
-    <div id="tab-zeit" class="tab-content">
-      <div class="form-group">
-        <label>Soll-Zeit:</label>
-        <div class="time-inputs">
-          <input type="time" id="time1" onchange="berechneZeit()" onclick="try{this.showPicker()}catch(e){}">
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Ist-Zeit:</label>
-        <div class="time-inputs">
-          <input type="time" id="time2" onchange="zeitIstAuto = false; berechneZeit()" onclick="try{this.showPicker()}catch(e){}">
-        </div>
-      </div>
-
-      <div id="result-zeit" class="result-box">
-        <div class="result-title">Zeitabweichung</div>
-        <div class="zeit-dual-row">
-          <div class="zeit-dual-box">
-            <div class="zeit-dual-label">Verspätung</div>
-            <div id="zeit-wert-spaet" class="zeit-dual-value" style="color: #ef4444;">-</div>
-          </div>
-          <div class="zeit-dual-box">
-            <div class="zeit-dual-label">Zu früh</div>
-            <div id="zeit-wert-frueh" class="zeit-dual-value" style="color: #22c55e;">-</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modul 3: Bremsberechnung (Ril 408) -->
-    <div id="tab-brems408" class="tab-content">
-      <div class="section-card">
-        <div class="section-title">
-          <span>1. Triebfahrzeuge</span>
-          <span id="b408-lok-count" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400;">1 / 3</span>
-        </div>
-
-        <div id="b408-lok-container" class="lok-carousel"></div>
-        <div id="b408-lok-dots" class="lok-dots"></div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-title"><span>2. Wagenzugdaten</span></div>
-
-        <div class="form-group">
-          <label for="b408-wagen-gewicht">Wagenzuggewicht (t)</label>
-          <input type="text" id="b408-wagen-gewicht" placeholder="z. B. 950" inputmode="numeric" oninput="b408AutoCheckMass()" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('b408-wagen-laenge').focus();}">
-        </div>
-
-        <div class="form-group">
-          <label for="b408-wagen-laenge">Wagenzuglänge (m)</label>
-          <input type="text" id="b408-wagen-laenge" placeholder="z. B. 520" inputmode="decimal" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('b408-wagen-p').focus();}">
-        </div>
-
-        <div class="form-group">
-          <label for="b408-wagen-p">Bremsgewicht Wagenzug P (t)</label>
-          <input type="text" id="b408-wagen-p" placeholder="z. B. 820" inputmode="numeric" enterkeyhint="next" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('b408-wagen-g').focus();}">
-        </div>
-
-        <div class="form-group">
-          <label for="b408-wagen-g">Bremsgewicht Wagenzug G (t)</label>
-          <input type="text" id="b408-wagen-g" placeholder="z. B. 150" inputmode="numeric" enterkeyhint="done" onkeydown="if(event.key==='Enter')this.blur()">
-        </div>
-
-        <label style="display: block; margin-bottom: 6px;">Methode für Längenabzug</label>
-        <div class="rule-switcher">
-          <button id="b408-rule-ril" class="rule-btn active" onclick="b408SetRuleMode('RIL')">Ril 408</button>
-          <button id="b408-rule-evu" class="rule-btn" onclick="b408SetRuleMode('EVU')">BRW-EVU</button>
-        </div>
-      </div>
-
-      <button class="calc-btn" onclick="b408CalculateBrakes()">BREMSEN BERECHNEN</button>
-
-      <div id="b408-result-card" class="result-card">
-        <div class="result-title">Vorhandene Bremshundertstel</div>
-        <div id="b408-res-prozent" class="result-main">0 %</div>
-
-        <div class="result-grid">
-          <div class="result-item">
-            <span>Gesamtzuglänge</span>
-            <strong id="b408-res-laenge">0 m</strong>
-          </div>
-          <div class="result-item">
-            <span>Gesamtzuggewicht</span>
-            <strong id="b408-res-masse">0 t</strong>
-          </div>
-        </div>
-
-        <div class="result-breakdown">
-          <div class="breakdown-row">
-            <span>Bremsgewicht Wagenzug</span>
-            <strong id="b408-res-brems-wagen">0 t</strong>
-          </div>
-          <div class="breakdown-row">
-            <span>Bremsgewicht Loks</span>
-            <strong id="b408-res-brems-lok">0 t</strong>
-          </div>
-          <div class="breakdown-row breakdown-total">
-            <span>Bremsgewicht gesamter Zug</span>
-            <strong id="b408-res-bremsgewicht">0 t</strong>
-          </div>
-        </div>
-
-        <div class="result-longabzug" id="b408-res-abzug-row"></div>
-      </div>
-    </div>
-
-    <!-- Modul 4: Betriebsstellen-Suche (Ril 100) -->
-    <div id="tab-bst" class="tab-content">
-      <div class="form-group">
-        <label for="bst-search">Suche (Code oder Name)</label>
-        <input type="text" id="bst-search" placeholder="z. B. Kls oder Kaiserebersdorf" oninput="bstSearch()" autocomplete="off">
-      </div>
-
-      <div class="rule-switcher" style="margin-top: 0; margin-bottom: 14px;">
-        <button id="bst-land-all" class="rule-btn active" onclick="bstSetLandFilter('ALL')">Alle</button>
-        <button id="bst-land-de" class="rule-btn" onclick="bstSetLandFilter('DE')">🇩🇪 DE</button>
-        <button id="bst-land-at" class="rule-btn" onclick="bstSetLandFilter('AT')">🇦🇹 AT</button>
-      </div>
-
-      <button class="btn-add" style="margin-bottom: 14px;" onclick="bstShowNearby()">📍 In meiner Nähe</button>
-
-      <div id="bst-status" class="bst-status-line">Wird beim ersten Öffnen geladen …</div>
-      <div id="bst-results"></div>
-
-      <div class="bst-data-stand">Stand: DE 31.08.2026 · AT 30.06.2026</div>
-    </div>
-
-    <!-- Modul 5: Fahrtenbuch -->
-    <div id="tab-fahrtenbuch" class="tab-content">
-      <div id="fb-main">
-        <div class="rule-switcher" style="margin-top: 0; margin-bottom: 14px;">
-          <button id="fb-subtab-fahrten" class="rule-btn active" onclick="fbSetSubView('fahrten')">Fahrten</button>
-          <button id="fb-subtab-strecken" class="rule-btn" onclick="fbSetSubView('strecken')">Strecken</button>
-        </div>
-
-        <div id="fb-view-fahrten">
-        <div id="fb-status-box" class="fb-status-box">
-          <div id="fb-status-label" class="fb-status-label">Bereit</div>
-          <div id="fb-status-detail" class="fb-status-detail">Noch keine Fahrt begonnen.</div>
-        </div>
-
-        <div class="bst-data-stand" style="margin-top: -10px; margin-bottom: 18px;">
-          Fahrzeit = Rangier-/Verschubfahrt + Zugfahrt inkl. Unterwegshalt bis 5 Minuten (Zeit bis Nachfrage) + Halt mit Info „Geht gleich weiter“
-        </div>
-
-        <div id="fb-btn-row-single">
-          <div class="fb-btn-row-inner">
-            <button id="fb-main-btn" class="fb-main-btn fb-btn-start" onclick="fbPressButton('abfahrt')">Starten</button>
-            <button id="fb-ping-btn" class="fb-ping-btn" style="display: none;" onclick="fbPressButton('durch')" title="Durchfahrt ohne Halt markieren" aria-label="Durchfahrt markieren">📍</button>
-          </div>
-        </div>
-        <div id="fb-btn-row-double" style="display: none;">
-          <button class="fb-main-btn fb-btn-start" style="margin-bottom: 10px;" onclick="fbPressButton('weiterfahrt')">Fortsetzen</button>
-          <button class="fb-main-btn fb-btn-end" onclick="fbPressButton('beenden')">Beenden</button>
-        </div>
-
-        <div id="fb-log-wrap">
-          <div class="fb-log-header">
-            <div class="fb-log-header-top">
-              <span id="fb-log-title">Aktuelle Fahrt</span>
-              <span id="fb-gesamtzeit"></span>
-            </div>
-            <div id="fb-totals" class="fb-totals"></div>
-            <div id="fb-route" class="fb-totals"></div>
-          </div>
-          <div id="fb-log"></div>
-        </div>
-
-        <div id="fb-edit-link-wrap" style="text-align: right; margin-top: -6px; margin-bottom: 10px; display: none;">
-          <span id="fb-collapse-link" class="fb-edit-link" style="margin-right: 14px; display: none;" onclick="fbCollapseCurrentShift()">✓ Fertig</span>
-          <span class="fb-edit-link" onclick="fbOpenEdit()">✏️ Bearbeiten</span>
-        </div>
-
-        <div class="fb-footer-actions">
-          <button class="btn-add" onclick="fbExportShift(null)">📄 Aktuelle Fahrt exportieren (.txt)</button>
-        </div>
-
-        <div id="fb-older-wrap" style="display: none;">
-          <div class="fb-log-header" style="margin-top: 20px;">
-            <span>Frühere Fahrten</span>
-          </div>
-          <div id="fb-older-list"></div>
-        </div>
-
-        <div class="fb-footer-actions">
-          <button class="btn-add" onclick="fbExportAllShifts()">📤 Alle Fahrten exportieren</button>
-          <button class="btn-add" style="color: var(--danger); border-color: var(--danger);" onclick="fbResetLog()">🗑 Alle Fahrten löschen</button>
-          <div class="fb-shift-entry-detail" style="margin-top: 8px; text-align: center;">Die angelegten Strecken mit ihrer Statistik bleiben dabei erhalten.</div>
-        </div>
-        </div>
-
-        <div id="fb-view-strecken" style="display: none;">
-          <div class="fb-footer-actions" style="margin-top: 0; margin-bottom: 16px;">
-            <button class="btn-add" onclick="fbOpenRouteAdd()">+ Strecke beobachten</button>
-          </div>
-          <div class="form-group" id="fb-route-search-wrap" style="margin-bottom: 10px; display: none;">
-            <input type="text" id="fb-route-search" placeholder="Suche nach Ort oder Code" oninput="fbRenderRoutes()" autocomplete="off">
-            <div class="fb-shift-entry-detail" style="margin-top: 6px;">Tipp: Einfach zwei Ortsnamen eintippen – findet dann alle Strecken zwischen den Orten, unabhängig der Betriebsstellen.</div>
-          </div>
-          <div id="fb-routes-list"></div>
-        </div>
-
-      </div>
-
-      <!-- Export/Import aller App-Daten (gesamtes localStorage, gilt automatisch
-           auch für zukünftige Module) — Einstieg über die drei Punkte im Header des Fahrtenbuchs. -->
-      <div id="settings-panel" style="display: none;">
-        <div class="fb-log-header"><span>Daten sichern</span></div>
-        <div class="fb-shift-entry-detail" style="margin-bottom: 14px;">
-          Exportiert alle in dieser App gespeicherten Daten (Fahrtenbuch, beobachtete Strecken, Einstellungen) als Datei — zum Sichern oder zum Übertragen auf ein neues Gerät.
-        </div>
-        <div class="fb-footer-actions">
-          <button class="btn-add" onclick="appExportData()">📤 Daten exportieren</button>
-        </div>
-        <div class="fb-footer-actions">
-          <button class="btn-add" onclick="appTriggerImport()">📥 Daten importieren</button>
-        </div>
-        <input type="file" id="app-import-file" accept=".json,application/json" style="display: none;" onchange="appImportFile(event)">
-
-        <div class="fb-log-header" style="margin-top: 26px;"><span>Automatische Sicherung</span></div>
-        <div class="fb-shift-entry-detail" style="margin-bottom: 14px;">
-          Deine Fahrten und Strecken werden in deinem eigenen Google Drive gesichert.
-        </div>
-        <div id="gdrive-status" class="fb-shift-entry-detail" style="margin-bottom: 10px; display: none;"></div>
-        <div class="fb-footer-actions">
-          <button id="gdrive-btn-toggle" class="btn-add" onclick="gdriveToggle()">☁️ Sicherung in Google Drive einschalten</button>
-          <button id="gdrive-btn-now" class="btn-add" style="display: none;" onclick="gdriveBackup(true)">🔄 Jetzt sichern</button>
-          <button id="gdrive-btn-restore" class="btn-add" style="display: none;" onclick="gdriveRestore()">📥 Aus Google Drive wiederherstellen</button>
-        </div>
-        <div class="fb-footer-actions" style="margin-top: 20px;">
-          <button class="btn-add" onclick="appCloseSettings()">Schließen</button>
-        </div>
-      </div>
-
-      <!-- Standort-Auswahl (beim Abfahrt/Stopp/Weiterfahrt/Beenden) -->
-      <div id="fb-picker" class="fb-picker" style="display: none;">
-        <div class="fb-picker-title" id="fb-picker-title">Betriebsstelle wählen</div>
-        <div id="fb-picker-default"></div>
-        <div class="form-group">
-          <input type="text" id="fb-picker-search" placeholder="Suchen oder aus der Liste wählen" oninput="fbPickerSearch()" autocomplete="off">
-        </div>
-        <div id="fb-picker-status" class="bst-status-line">Ermittle Standort …</div>
-        <div id="fb-picker-list"></div>
-        <button class="btn-add" onclick="fbClosePicker()">Abbrechen</button>
-      </div>
-
-      <!-- Uhrzeiten der letzten Schicht nachträglich korrigieren -->
-      <div id="fb-edit-panel" class="fb-picker" style="display: none;">
-        <div class="fb-picker-title">Uhrzeiten korrigieren</div>
-        <div id="fb-edit-list"></div>
-        <div class="fb-footer-actions">
-          <button class="btn-add" onclick="fbSaveEdit()">Speichern</button>
-          <button class="btn-add" onclick="fbCloseEdit()">Abbrechen</button>
-        </div>
-      </div>
-
-      <!-- Start/Ziel einer neuen beobachteten Strecke wählen (zweistufig,
-           nutzt denselben Betriebsstellen-Picker wie Abfahrt/Stopp) -->
-      <div id="fb-route-picker" class="fb-picker" style="display: none;">
-        <div class="fb-picker-title" id="fb-route-picker-title">Startort wählen</div>
-        <div class="form-group">
-          <input type="text" id="fb-route-picker-search" placeholder="Suchen" oninput="fbRoutePickerSearch()" autocomplete="off">
-        </div>
-        <div id="fb-route-picker-list"></div>
-        <button class="btn-add" onclick="fbCloseRouteAdd()">Abbrechen</button>
-      </div>
+    <div class="row-label">Farbe</div>
+    <div class="dots" id="fam-dots"></div>
+    <div class="filter-foot">
+      <span id="count"></span>
+      <span>
+        <label class="toggle"><input type="checkbox" id="hide-empty"> Leere ausblenden</label>
+      </span>
+      <button class="link-btn" id="reset">Filter löschen</button>
     </div>
   </div>
 
-  <footer style="text-align: center; margin-top: 20px; font-size: 0.75rem; color: var(--text-muted);">
-    © Marco Weniger
-  </footer>
+  <div id="list"></div>
+</div>
 
-  <script>
-    // Zahlen-Eingaben sollen sowohl "5.9" als auch das deutsche "5,9" verstehen —
-    // parseFloat() allein bricht bei einem Komma ab und liefert nur den
-    // Teil davor (z.B. aus "5,9" wird 5), was Berechnungen bis zur nächsten
-    // vollen Zahl konstant hält. Deshalb überall num() statt parseFloat()
-    // auf Nutzereingaben verwenden.
-    function num(value) {
-      if (typeof value !== 'string') return parseFloat(value);
-      return parseFloat(value.replace(',', '.'));
+<button id="fab" aria-label="Neue Rolle">+</button>
+
+<!-- Formular -->
+<div class="overlay" id="form-ov">
+  <div class="sheet">
+    <h2 id="form-title">Neue Rolle</h2>
+    <div class="field"><label>Hersteller</label><input type="text" id="f-hersteller" list="dl-hersteller" autocomplete="off"><datalist id="dl-hersteller"></datalist></div>
+    <div class="two">
+      <div class="field"><label>Material</label>
+        <select id="f-material">
+          <option>PLA</option><option>PETG</option><option>TPU</option><option>ABS</option><option>ASA</option><option>PA</option><option>PC</option><option>Sonstiges</option>
+        </select>
+      </div>
+      <div class="field"><label>Variante (optional)</label><input type="text" id="f-variante" list="dl-variante" placeholder="z. B. Plus, Matt, 95A" autocomplete="off"><datalist id="dl-variante"></datalist></div>
+    </div>
+    <div class="field"><label>Farbname</label><input type="text" id="f-farbe" autocomplete="off" placeholder="z. B. Jade White"></div>
+    <div class="field">
+      <label>Farbcode (Hex)</label>
+      <div class="hexrow">
+        <div class="hexin"><span>#</span><input type="text" id="f-hex" placeholder="RRGGBB" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <input type="color" id="f-picker" value="#808080" aria-label="Farbkreis">
+        <button class="btn sec" id="f-search" type="button">Hex suchen</button>
+      </div>
+      <div class="preview" id="f-preview"></div>
+      <div class="hint">„Hex suchen“ öffnet eine Websuche. Gefundenen Code hier einfügen oder per Farbkreis (Feld rechts) einstellen.</div>
+    </div>
+    <div class="field"><label>Farbfamilie (für den Schnellfilter)</label><select id="f-familie"></select></div>
+    <div class="two">
+      <div class="field"><label>Ausgangsgewicht (g)</label><input type="number" id="f-start" inputmode="numeric" value="1000"></div>
+      <div class="field"><label>Restmenge (g)</label><input type="number" id="f-rest" inputmode="numeric"></div>
+    </div>
+    <div class="field"><label>Anzahl Rollen</label><input type="number" id="f-anzahl" inputmode="numeric" value="1" min="1"></div>
+    <div class="sheet-actions">
+      <button class="btn sec" id="f-cancel" type="button">Abbrechen</button>
+      <button class="btn" id="f-save" type="button">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Daten sichern -->
+<div class="overlay" id="set-ov">
+  <div class="sheet">
+    <h2>Daten sichern</h2>
+    <p class="hint" style="margin-bottom:14px">Exportiert alle gespeicherten Rollen als Datei, zum Sichern oder für ein neues Handy. Beim Import werden alle aktuellen Rollen ersetzt.</p>
+    <div class="sheet-actions" style="flex-direction:column">
+      <button class="btn" id="exp">Daten exportieren</button>
+      <button class="btn sec" id="imp">Daten importieren</button>
+      <button class="btn sec" id="set-close">Schließen</button>
+    </div>
+    <input type="file" id="imp-file" accept=".json,application/json" style="display:none">
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'filamentSpools';
+  var FAMILIEN = ['Schwarz', 'Weiß', 'Grau', 'Rot', 'Orange', 'Gelb', 'Grün', 'Blau', 'Lila', 'Braun', 'Sonstige'];
+  var FAM_FARBE = { 'Schwarz': '#111111', 'Weiß': '#f3f4f6', 'Grau': '#8b9098', 'Rot': '#e11d48', 'Orange': '#f97316', 'Gelb': '#facc15', 'Grün': '#22c55e', 'Blau': '#3b82f6', 'Lila': '#a855f7', 'Braun': '#8b5a2b', 'Sonstige': 'conic-gradient(#f43f5e,#facc15,#22c55e,#38bdf8,#a855f7,#f43f5e)' };
+  var VARIANTEN = ['Basic', 'Plus', 'Matt', 'Silk', 'HF', 'CF', 'Marmor', 'Glitzer', 'Transparent', '85A', '95A'];
+
+  var spools = [];
+  var filter = { q: '', mat: '', vari: '', fam: '', hideEmpty: false };
+  var openId = null, editId = null;
+
+  function $(id) { return document.getElementById(id); }
+  function load() { try { spools = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { spools = []; } }
+  function save() { localStorage.setItem(KEY, JSON.stringify(spools)); }
+  function fmt(n) { return (Math.round(n * 10) / 10).toString().replace('.', ','); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function toast(t) { var el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove('show'); }, 2200); }
+
+  /* ---------- Farbe ---------- */
+  function normHex(h) {
+    h = String(h || '').trim().replace(/^#?/, '');
+    if (/^[0-9a-f]{3}$/i.test(h)) h = h.split('').map(function (c) { return c + c; }).join('');
+    return /^[0-9a-f]{6}$/i.test(h) ? '#' + h.toLowerCase() : '';
+  }
+  function hexToHsl(hex) {
+    var r = parseInt(hex.substr(1, 2), 16) / 255, g = parseInt(hex.substr(3, 2), 16) / 255, b = parseInt(hex.substr(5, 2), 16) / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, h = 0, s = 0, d = max - min;
+    if (d) {
+      s = l > .5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = ((g - b) / d) % 6; else if (max === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+      h *= 60; if (h < 0) h += 360;
     }
+    return { h: h, s: s, l: l };
+  }
+  function guessFamily(hex) {
+    if (!hex) return 'Sonstige';
+    var c = hexToHsl(hex);
+    if (c.l < .13) return 'Schwarz';
+    if (c.s < .14) return c.l > .78 ? 'Weiß' : 'Grau';
+    if (c.l > .78 && c.s < .45) return 'Weiß';          // Knochen-/Cremeweiß
+    var h = c.h;
+    if (h >= 15 && h < 45 && c.l < .42) return 'Braun';
+    if (h >= 300 || h < 15) return 'Rot';                 // Rot, Magenta, Pink, Sakura
+    if (h < 42) return 'Orange';
+    if (h < 70) return 'Gelb';
+    if (h < 170) return 'Grün';
+    if (h < 255) return 'Blau';
+    return 'Lila';
+  }
 
-    // Kachel-Navigation: ein Modul öffnen, Zurück-Leiste einblenden,
-    // History-Eintrag setzen, damit die Zurück-Taste ins Menü statt aus der App führt.
-    let currentModule = null;
-    let historyApiWorks = true;
+  /* ---------- Filter ---------- */
+  function matches(s, ignore) {
+    if (ignore !== 'mat' && filter.mat && s.material !== filter.mat) return false;
+    if (ignore !== 'vari' && filter.vari && (s.variante || '') !== filter.vari) return false;
+    if (ignore !== 'fam' && filter.fam && s.familie !== filter.fam) return false;
+    if (filter.hideEmpty && s.rest <= 0) return false;
+    if (filter.q) {
+      var hay = (s.hersteller + ' ' + s.farbe + ' ' + s.material + ' ' + (s.variante || '') + ' ' + (s.hex || '')).toLowerCase();
+      var words = filter.q.toLowerCase().split(/\s+/).filter(Boolean);
+      for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) < 0) return false;
+    }
+    return true;
+  }
+  function count(map, arr) { arr.forEach(function (k) { map[k] = (map[k] || 0) + 1; }); return map; }
 
-    const MODULE_TITLES = {
-      brems408: 'Bremsberechnung',
-      bremse: 'Festhaltekraft',
-      bst: 'Betriebsstellen',
-      zeit: 'Zeitdifferenz',
-      fahrtenbuch: 'Fahrtenbuch'
+  function renderFilters() {
+    // Nur vorhandene Werte, Zähler passen sich den übrigen Filtern an
+    var mats = {}, vars = {}, fams = {};
+    spools.forEach(function (s) {
+      if (matches(s, 'mat')) mats[s.material] = (mats[s.material] || 0) + 1;
+      else if (!(s.material in mats)) mats[s.material] = mats[s.material] || 0;
+    });
+    var matKeys = Object.keys(mats).sort();
+    if (filter.mat && matKeys.indexOf(filter.mat) < 0) filter.mat = '';
+    $('mat-chips').innerHTML = matKeys.map(function (m) {
+      return '<button class="chip' + (filter.mat === m ? ' active' : '') + '" data-mat="' + esc(m) + '">' + esc(m) + '<small>' + mats[m] + '</small></button>';
+    }).join('');
+
+    // Variantenebene nur, wenn ein Material gewählt ist und es Varianten gibt
+    var vs = {};
+    spools.forEach(function (s) { if (s.material === filter.mat && s.variante && matches(s, 'vari')) vs[s.variante] = (vs[s.variante] || 0) + 1; });
+    var allVars = {};
+    spools.forEach(function (s) { if (s.material === filter.mat && s.variante) allVars[s.variante] = 1; });
+    var vKeys = Object.keys(allVars).sort();
+    $('var-wrap').style.display = filter.mat && vKeys.length ? '' : 'none';
+    if (filter.vari && vKeys.indexOf(filter.vari) < 0) filter.vari = '';
+    $('var-chips').innerHTML = vKeys.map(function (v) {
+      return '<button class="chip' + (filter.vari === v ? ' active' : '') + '" data-vari="' + esc(v) + '">' + esc(v) + '<small>' + (vs[v] || 0) + '</small></button>';
+    }).join('');
+
+    var famAll = {};
+    spools.forEach(function (s) { famAll[s.familie] = 1; if (matches(s, 'fam')) fams[s.familie] = (fams[s.familie] || 0) + 1; });
+    if (filter.fam && !famAll[filter.fam]) filter.fam = '';
+    $('fam-dots').innerHTML = FAMILIEN.filter(function (f) { return famAll[f]; }).map(function (f) {
+      return '<button class="dot-btn' + (filter.fam === f ? ' active' : '') + '" data-fam="' + f + '" title="' + f + '" style="background:' + FAM_FARBE[f] + '"><span>' + (fams[f] || 0) + '</span></button>';
+    }).join('') || '<span class="hint">–</span>';
+  }
+
+  /* ---------- Liste ---------- */
+  function barClass(p) { return p < .15 ? 'low' : p < .4 ? 'mid' : ''; }
+  function render() {
+    renderFilters();
+    var list = spools.filter(function (s) { return matches(s); }).sort(function (a, b) {
+      return (a.material + (a.variante || '') + a.hersteller + a.farbe).localeCompare(b.material + (b.variante || '') + b.hersteller + b.farbe, 'de');
+    });
+    var total = list.reduce(function (n, s) { return n + (s.rest > 0 ? 1 : 0) * (s.anzahl || 1); }, 0);
+    $('count').textContent = list.length + ' von ' + spools.length + ' Einträgen';
+    if (!list.length) {
+      $('list').innerHTML = '<div class="none">' + (spools.length ? 'Keine Rolle passt zu den Filtern.' : 'Mit „+“ Rolle hinzufügen') + '</div>';
+      return;
+    }
+    $('list').innerHTML = list.map(function (s) {
+      var p = s.start > 0 ? Math.max(0, Math.min(1, s.rest / s.start)) : 0;
+      var mat = s.material + (s.variante ? ' ' + s.variante : '');
+      var isOpen = openId === s.id;
+      return '<div class="spool' + (s.rest <= 0 ? ' empty' : '') + (isOpen ? ' open' : '') + '" data-id="' + s.id + '">' +
+        '<div class="spool-main" data-toggle="' + s.id + '">' +
+          '<div class="swatch" style="background:' + (s.hex || FAM_FARBE[s.familie]) + '"></div>' +
+          '<div class="info">' +
+            '<div class="name">' + esc(s.farbe || '(ohne Name)') + (s.anzahl > 1 ? '<span class="badge">×' + s.anzahl + '</span>' : '') + '</div>' +
+            '<div class="sub">' + esc(s.hersteller) + ' · ' + esc(mat) + (s.hex ? ' · ' + s.hex : '') + '</div>' +
+            '<div class="rest"><div class="rest-line"><b>' + fmt(s.rest) + ' g</b><span style="color:var(--muted)">von ' + fmt(s.start) + ' g</span></div>' +
+            '<div class="bar"><i class="' + barClass(p) + '" style="width:' + Math.round(p * 100) + '%"></i></div></div>' +
+          '</div></div>' +
+        '<div class="actions">' +
+          '<div class="deduct"><input type="text" inputmode="decimal" autocomplete="off" placeholder="Verbrauch laut Slicer (g)" id="d-' + s.id + '"><button class="btn" data-deduct="' + s.id + '">Abziehen</button></div>' +
+          (s.undo != null ? '<div class="hint">Zuletzt abgezogen: ' + fmt(s.undo - s.rest) + ' g · <button class="link-btn" data-undo="' + s.id + '">Rückgängig</button></div>' : '') +
+          '<div class="action-row"><button class="btn sec" data-edit="' + s.id + '">Bearbeiten</button><button class="btn danger" data-del="' + s.id + '">Löschen</button></div>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  /* ---------- Formular ---------- */
+  function fillSuggestions() {
+    var h = {}; spools.forEach(function (s) { if (s.hersteller) h[s.hersteller] = 1; });
+    $('dl-hersteller').innerHTML = Object.keys(h).sort().map(function (x) { return '<option value="' + esc(x) + '">'; }).join('');
+    var v = {}; VARIANTEN.forEach(function (x) { v[x] = 1; }); spools.forEach(function (s) { if (s.variante) v[s.variante] = 1; });
+    $('dl-variante').innerHTML = Object.keys(v).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('');
+  }
+  var famManual = false, startManual = false;
+  function updatePreview() {
+    var hex = normHex($('f-hex').value);
+    $('f-preview').style.background = hex || 'transparent';
+    if (hex) $('f-picker').value = hex;
+    if (!famManual) $('f-familie').value = guessFamily(hex);
+  }
+  function openForm(id) {
+    editId = id || null;
+    fillSuggestions();
+    $('f-familie').innerHTML = FAMILIEN.map(function (f) { return '<option>' + f + '</option>'; }).join('');
+    var s = spools.filter(function (x) { return x.id === id; })[0];
+    $('form-title').textContent = s ? 'Rolle bearbeiten' : 'Neue Rolle';
+    $('f-hersteller').value = s ? s.hersteller : '';
+    $('f-material').value = s ? s.material : 'PLA';
+    $('f-variante').value = s ? (s.variante || '') : '';
+    $('f-farbe').value = s ? s.farbe : '';
+    $('f-hex').value = s && s.hex ? s.hex.slice(1) : '';
+    $('f-start').value = s ? s.start : 1000;
+    $('f-rest').value = s ? s.rest : '';
+    $('f-anzahl').value = s ? (s.anzahl || 1) : 1;
+    famManual = !!s;
+    startManual = !!s;
+    updatePreview();
+    if (s) $('f-familie').value = s.familie;
+    $('form-ov').classList.add('show');
+  }
+  function saveForm() {
+    var hersteller = $('f-hersteller').value.trim();
+    var farbe = $('f-farbe').value.trim();
+    if (!hersteller && !farbe) { toast('Bitte Hersteller oder Farbname eintragen'); return; }
+    var rawHex = $('f-hex').value.trim();
+    var hex = normHex(rawHex);
+    if (rawHex && !hex) { toast('Hex-Code ungültig (z. B. #F2F0E6)'); return; }
+    var start = parseFloat($('f-start').value); if (!(start > 0)) start = 1000;
+    var restRaw = $('f-rest').value.trim();
+    var rest = restRaw === '' ? start : parseFloat(restRaw);
+    if (isNaN(rest) || rest < 0) rest = 0;
+    var data = {
+      hersteller: hersteller, material: $('f-material').value, variante: $('f-variante').value.trim(),
+      farbe: farbe, hex: hex, familie: $('f-familie').value || guessFamily(hex),
+      start: start, rest: rest, anzahl: Math.max(1, parseInt($('f-anzahl').value, 10) || 1)
     };
-
-    function openModule(name) {
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-      document.getElementById('tab-' + name).classList.add('active');
-      document.getElementById('header-back-btn').style.display = 'inline-block';
-      // Datensicherung (⋮) gibt es nur im Fahrtenbuch.
-      document.getElementById('header-settings-btn').style.display = name === 'fahrtenbuch' ? 'inline-block' : 'none';
-      appCloseSettings();
-      document.getElementById('app-header-title').textContent = MODULE_TITLES[name] || 'Tf-Assistent';
-      currentModule = name;
-      if (name === 'zeit') zeitIstAktualisieren();
-      try {
-        history.pushState({ module: name }, '', '#' + name);
-      } catch (e) { historyApiWorks = false; /* z.B. in sandboxed Vorschauen nicht erlaubt — Modul bleibt trotzdem offen */ }
-      if (name === 'bst' || name === 'fahrtenbuch') bstEnsureLoaded();
-      if (name === 'fahrtenbuch') {
-        fbClosePicker();
-        fbRender();
-      }
-    }
-
-    // Setzt ein Modul auf seinen Ausgangszustand zurück (Eingaben + Ergebnis) —
-    // wird beim Verlassen aufgerufen, weil der Vorgang auf der Seite dann als
-    // abgeschlossen gilt.
-    function resetModuleState(name) {
-      if (name === 'bremse') {
-        document.getElementById('zuggewicht').value = '';
-        document.getElementById('neigung').value = '';
-        document.getElementById('result-bremse').classList.remove('visible');
-      } else if (name === 'zeit') {
-        document.getElementById('time1').value = '';
-        zeitIstAuto = true;
-        const now = new Date();
-        document.getElementById('time2').value =
-          `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        document.getElementById('result-zeit').classList.remove('visible');
-      } else if (name === 'brems408') {
-        document.getElementById('b408-wagen-gewicht').value = '';
-        document.getElementById('b408-wagen-laenge').value = '';
-        document.getElementById('b408-wagen-p').value = '';
-        document.getElementById('b408-wagen-g').value = '';
-        b408Loks = [];
-        b408AddLok();
-        document.getElementById('b408-result-card').classList.remove('visible');
-      } else if (name === 'bst') {
-        document.getElementById('bst-search').value = '';
-        bstLandFilter = 'ALL';
-        document.getElementById('bst-land-all').classList.add('active');
-        document.getElementById('bst-land-de').classList.remove('active');
-        document.getElementById('bst-land-at').classList.remove('active');
-        clearTimeout(bstSearchTimer);
-        document.getElementById('bst-results').innerHTML = '';
-        const statusEl = document.getElementById('bst-status');
-        statusEl.textContent = bstData
-          ? `${bstData.length} Betriebsstellen geladen — Suchbegriff eingeben oder Standort nutzen.`
-          : 'Wird beim ersten Öffnen geladen …';
-      }
-    }
-
-    // ===== Daten sichern: Export/Import des kompletten localStorage =====
-    // Bewusst generisch über ALLE vorhandenen Keys, nicht auf bestimmte Module
-    // beschränkt — so landen auch künftige Module automatisch mit im Backup,
-    // ohne dass diese Funktion je wieder angefasst werden muss.
-    function appOpenSettings() {
-      fbClosePicker();
-      document.getElementById('fb-main').style.display = 'none';
-      document.getElementById('settings-panel').style.display = '';
-      gdriveRenderStatus();
-      window.scrollTo(0, 0);
-    }
-
-    function appCloseSettings() {
-      const panel = document.getElementById('settings-panel');
-      if (panel.style.display === 'none') return;
-      panel.style.display = 'none';
-      document.getElementById('fb-main').style.display = 'block';
-    }
-
-    // Sammelt alle App-Daten (ohne die geräte-spezifischen Google-Drive-Einstellungen).
-    function appCollectPayload() {
-      const data = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith('tfGdrive')) continue;
-        data[key] = localStorage.getItem(key);
-      }
-      return {
-        app: 'tf-assistent',
-        exportedAt: new Date().toISOString(),
-        data
-      };
-    }
-
-    // Leert den lokalen Speicher, behält aber die Google-Drive-Einstellungen
-    // dieses Geräts (Sicherung bleibt nach einem Import eingeschaltet).
-    function appClearKeepingDevice() {
-      const keep = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith('tfGdrive')) keep[key] = localStorage.getItem(key);
-      }
-      localStorage.clear();
-      Object.keys(keep).forEach(k => localStorage.setItem(k, keep[k]));
-    }
-
-    function appExportData() {
-      const payload = appCollectPayload();
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const datum = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `tf-assistent-backup-${datum}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    function appTriggerImport() {
-      document.getElementById('app-import-file').click();
-    }
-
-    function appImportFile(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        let parsed;
-        try {
-          parsed = JSON.parse(reader.result);
-        } catch (e) {
-          alert('Die Datei konnte nicht gelesen werden — ist das eine gültige Backup-Datei?');
-          event.target.value = '';
-          return;
-        }
-        if (!parsed || typeof parsed.data !== 'object') {
-          alert('Diese Datei sieht nicht wie ein Tf-Assistent-Backup aus.');
-          event.target.value = '';
-          return;
-        }
-        const anzahl = Object.keys(parsed.data).length;
-        const datumText = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('de-DE') : 'unbekannt';
-        if (!confirm(`Wirklich ALLE aktuellen Daten auf diesem Gerät durch das Backup vom ${datumText} ersetzen (${anzahl} gespeicherte Eintr${anzahl === 1 ? 'ag' : 'äge'})? Das kann nicht rückgängig gemacht werden.`)) {
-          event.target.value = '';
-          return;
-        }
-        appClearKeepingDevice();
-        Object.keys(parsed.data).forEach(key => {
-          localStorage.setItem(key, parsed.data[key]);
-        });
-        alert('Import abgeschlossen. Die App wird jetzt neu geladen.');
-        location.reload();
-      };
-      reader.onerror = () => {
-        alert('Die Datei konnte nicht gelesen werden.');
-      };
-      reader.readAsText(file);
-    }
-
-
-    // ===== Automatische Sicherung in Google Drive =====
-    // Reine Browser-Lösung ohne eigenen Server: Anmeldung über Google Identity
-    // Services, Zugriff nur auf Dateien, die diese App selbst angelegt hat
-    // (Scope drive.file). Es gibt genau EINE Datei "tf-assistent-backup.json" im
-    // Drive des Nutzers, die bei jeder Sicherung überschrieben wird.
-    // WICHTIG: Hier die eigene OAuth-Client-ID aus der Google Cloud Console eintragen.
-    const GDRIVE_CLIENT_ID = '131765507907-pft4u7tl40i1so7d5e6ph7h6eo7t5k4n.apps.googleusercontent.com';
-    const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-    const GDRIVE_FILENAME = 'tf-assistent-backup.json';
-    let gdriveToken = null;       // { value, exp }
-    let gdriveTokenClient = null;
-    let gdriveBusy = false;
-    let gdriveNote = '';          // kurzer Statushinweis (z. B. Fehler)
-
-    function gdriveConfigured() {
-      return GDRIVE_CLIENT_ID.indexOf('HIER-GOOGLE') !== 0;
-    }
-    function gdriveEnabled() {
-      try { return localStorage.getItem('tfGdriveEnabled') === '1'; } catch (e) { return false; }
-    }
-
-    function gdriveLoadScript() {
-      return new Promise((resolve, reject) => {
-        if (window.google && google.accounts && google.accounts.oauth2) return resolve();
-        const el = document.createElement('script');
-        el.src = 'https://accounts.google.com/gsi/client';
-        el.async = true;
-        el.onload = () => resolve();
-        el.onerror = () => reject(new Error('offline'));
-        document.head.appendChild(el);
-      });
-    }
-
-    // Liefert ein gültiges Zugriffstoken. interactive=false: nur still (ohne
-    // Fenster) versuchen — klappt nicht immer, dann wird später beim nächsten
-    // Tippen auf einen Button erneut versucht.
-    function gdriveGetToken(interactive) {
-      if (gdriveToken && gdriveToken.exp > Date.now() + 60000) return Promise.resolve(gdriveToken.value);
-      return gdriveLoadScript().then(() => new Promise((resolve, reject) => {
-        gdriveTokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: GDRIVE_CLIENT_ID,
-          scope: GDRIVE_SCOPE,
-          callback: (resp) => {
-            if (resp && resp.access_token) {
-              gdriveToken = { value: resp.access_token, exp: Date.now() + (Number(resp.expires_in) || 3600) * 1000 };
-              resolve(gdriveToken.value);
-            } else {
-              reject(new Error((resp && resp.error) || 'auth'));
-            }
-          },
-          error_callback: (err) => reject(new Error((err && err.type) || 'auth'))
-        });
-        gdriveTokenClient.requestAccessToken({ prompt: interactive ? '' : 'none' });
-      }));
-    }
-
-    function gdriveApi(url, token, opts) {
-      opts = opts || {};
-      opts.headers = Object.assign({ Authorization: 'Bearer ' + token }, opts.headers || {});
-      return fetch(url, opts).then(res => {
-        if (res.status === 401) gdriveToken = null;
-        return res;
-      });
-    }
-
-    // Findet die Sicherungsdatei (zuerst über die gemerkte ID, sonst per Namenssuche).
-    async function gdriveFindFile(token) {
-      const savedId = localStorage.getItem('tfGdriveFileId');
-      if (savedId) {
-        const r = await gdriveApi('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(savedId) + '?fields=id,trashed', token);
-        if (r.ok) {
-          const j = await r.json();
-          if (!j.trashed) return savedId;
-        }
-      }
-      const q = encodeURIComponent(`name='${GDRIVE_FILENAME}' and trashed=false`);
-      const r2 = await gdriveApi('https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id)&orderBy=modifiedTime desc', token);
-      if (!r2.ok) throw new Error('find ' + r2.status);
-      const list = (await r2.json()).files || [];
-      if (list.length > 0) {
-        localStorage.setItem('tfGdriveFileId', list[0].id);
-        return list[0].id;
-      }
-      return null;
-    }
-
-    async function gdriveBackup(interactive) {
-      if (!gdriveEnabled() || gdriveBusy) return;
-      gdriveBusy = true;
-      gdriveNote = interactive ? 'Sichere …' : '';
-      gdriveRenderStatus();
-      try {
-        const token = await gdriveGetToken(!!interactive);
-        const body = JSON.stringify(appCollectPayload());
-        let id = await gdriveFindFile(token);
-        let res;
-        if (id) {
-          res = await gdriveApi('https://www.googleapis.com/upload/drive/v3/files/' + encodeURIComponent(id) + '?uploadType=media', token, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body
-          });
-        } else {
-          const boundary = 'tfbackup' + Date.now();
-          const multipart =
-            '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' +
-            JSON.stringify({ name: GDRIVE_FILENAME, mimeType: 'application/json' }) + '\r\n' +
-            '--' + boundary + '\r\nContent-Type: application/json\r\n\r\n' + body + '\r\n' +
-            '--' + boundary + '--';
-          res = await gdriveApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', token, {
-            method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + boundary }, body: multipart
-          });
-          if (res.ok) {
-            const j = await res.json();
-            if (j.id) localStorage.setItem('tfGdriveFileId', j.id);
-          }
-        }
-        if (!res.ok) throw new Error('upload ' + res.status);
-        localStorage.setItem('tfGdriveLast', new Date().toISOString());
-        gdriveNote = '';
-      } catch (e) {
-        gdriveNote = interactive
-          ? 'Sicherung fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.'
-          : 'Automatische Sicherung nach der Fahrt nicht möglich — tippe auf „Jetzt sichern".';
-      } finally {
-        gdriveBusy = false;
-        gdriveRenderStatus();
-      }
-    }
-
-    async function gdriveRestore() {
-      if (!gdriveEnabled()) return;
-      try {
-        const token = await gdriveGetToken(true);
-        const id = await gdriveFindFile(token);
-        if (!id) { alert('In deinem Google Drive wurde noch keine Sicherung gefunden.'); return; }
-        const res = await gdriveApi('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', token);
-        if (!res.ok) throw new Error('download ' + res.status);
-        const parsed = await res.json();
-        if (!parsed || typeof parsed.data !== 'object') { alert('Die Sicherung in Google Drive ist nicht lesbar.'); return; }
-        const anzahl = Object.keys(parsed.data).length;
-        const datumText = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('de-DE') : 'unbekannt';
-        if (!confirm(`Wirklich ALLE aktuellen Daten auf diesem Gerät durch die Sicherung vom ${datumText} ersetzen (${anzahl} gespeicherte Eintr${anzahl === 1 ? 'ag' : 'äge'})? Das kann nicht rückgängig gemacht werden.`)) return;
-        appClearKeepingDevice();
-        Object.keys(parsed.data).forEach(key => localStorage.setItem(key, parsed.data[key]));
-        alert('Wiederherstellung abgeschlossen. Die App wird jetzt neu geladen.');
-        location.reload();
-      } catch (e) {
-        alert('Wiederherstellung nicht möglich. Bitte Verbindung prüfen und erneut versuchen.');
-      }
-    }
-
-    async function gdriveToggle() {
-      if (gdriveEnabled()) {
-        if (!confirm('Automatische Sicherung ausschalten? Die bereits gesicherte Datei bleibt in deinem Google Drive.')) return;
-        localStorage.removeItem('tfGdriveEnabled');
-        gdriveNote = '';
-        gdriveRenderStatus();
-        return;
-      }
-      if (!gdriveConfigured()) {
-        alert('Der Google-Zugang ist in dieser Version noch nicht eingerichtet.');
-        return;
-      }
-      let token;
-      try {
-        token = await gdriveGetToken(true);
-      } catch (e) {
-        gdriveNote = 'Anmeldung bei Google nicht abgeschlossen.';
-        gdriveRenderStatus();
-        return;
-      }
-      // Schutz vor versehentlichem Überschreiben: Liegt in Drive schon eine Sicherung
-      // (z. B. von einem anderen Gerät), wird zuerst gefragt, ob sie geladen werden soll.
-      try {
-        const id = await gdriveFindFile(token);
-        if (id) {
-          const res = await gdriveApi('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', token);
-          if (!res.ok) throw new Error('download ' + res.status);
-          const parsed = await res.json();
-          if (parsed && typeof parsed.data === 'object') {
-            const datumText = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('de-DE') : 'unbekannt';
-            if (confirm(`Sicherung vom ${datumText} in Google Drive gefunden. Jetzt laden? Die Daten auf diesem Gerät werden ersetzt.`)) {
-              localStorage.setItem('tfGdriveEnabled', '1');
-              localStorage.setItem('tfGdriveFileId', id);
-              appClearKeepingDevice();
-              Object.keys(parsed.data).forEach(key => localStorage.setItem(key, parsed.data[key]));
-              alert('Sicherung geladen. Die App wird jetzt neu geladen.');
-              location.reload();
-              return;
-            }
-            if (!confirm('Sicherung in Google Drive mit den Daten dieses Geräts überschreiben?')) {
-              gdriveNote = 'Sicherung wurde nicht eingeschaltet.';
-              gdriveRenderStatus();
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        // Prüfung nicht möglich -> lieber nichts überschreiben
-        gdriveNote = 'Vorhandene Sicherung konnte nicht geprüft werden. Bitte Verbindung prüfen und erneut versuchen.';
-        gdriveRenderStatus();
-        return;
-      }
-      localStorage.setItem('tfGdriveEnabled', '1');
-      await gdriveBackup(true);
-    }
-
-    function gdriveRenderStatus() {
-      const on = gdriveEnabled();
-      const statusEl = document.getElementById('gdrive-status');
-      if (!statusEl) return;
-      document.getElementById('gdrive-btn-toggle').textContent =
-        on ? '☁️ Sicherung ausschalten' : '☁️ Sicherung in Google Drive einschalten';
-      document.getElementById('gdrive-btn-now').style.display = on ? '' : 'none';
-      document.getElementById('gdrive-btn-restore').style.display = on ? '' : 'none';
-      const last = localStorage.getItem('tfGdriveLast');
-      let text = '';
-      if (on) {
-        text = last ? 'Eingeschaltet · Letzte Sicherung: ' + new Date(last).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-                    : 'Eingeschaltet · Noch keine Sicherung';
-      }
-      if (gdriveNote) text = text ? text + '\n' + gdriveNote : gdriveNote;
-      statusEl.style.whiteSpace = 'pre-line';
-      statusEl.textContent = text;
-      statusEl.style.display = text ? '' : 'none';
-    }
-
-
-    window.addEventListener('scroll', () => {
-      document.getElementById('scroll-top-btn').classList.toggle('visible', window.scrollY > 400);
-    });
-
-    function goHome() {
-      if (currentModule) resetModuleState(currentModule);
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-      document.getElementById('home-screen').classList.add('active');
-      document.getElementById('header-back-btn').style.display = 'none';
-      document.getElementById('header-settings-btn').style.display = 'none';
-      appCloseSettings();
-      document.getElementById('app-header-title').textContent = 'Tf-Assistent';
-      currentModule = null;
-      fbUpdateBadge();
-    }
-
-    // Hardware-/Gesten-Zurück-Taste: geht ins Hauptmenü statt die App zu verlassen
-    window.addEventListener('popstate', () => {
-      goHome();
-    });
-
-    window.addEventListener('DOMContentLoaded', () => {
-      // Anfangszustand: Hauptmenü, ohne dass "zurück" aus der App rausführt
-      try {
-        history.replaceState({ module: null }, '', '#home');
-      } catch (e) { /* z.B. in sandboxed Vorschauen nicht erlaubt */ }
-
-      const now = new Date();
-      document.getElementById('time2').value =
-        `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-      // Bremsberechnung: erste Lok anlegen
-      b408AddLok();
-      document.getElementById('b408-lok-container').addEventListener('scroll', b408CarouselScrolled);
-
-      // Gespeicherten Regel-Modus (Ril 408 / BRW-EVU) wiederherstellen
-      try {
-        const savedMode = localStorage.getItem("brems_rule_mode");
-        if (savedMode) b408SetRuleMode(savedMode);
-      } catch (e) { /* localStorage evtl. nicht verfügbar */ }
-
-      // Fahrtenbuch-Log aus vorheriger Sitzung laden
-      fbLoad();
-      fbLoadRoutes();
-      fbLoadCollapsed();
-      fbUpdateBadge();
-    });
-
-    // Rechner 1: Festhaltebremse
-    function berechneBremse() {
-      const gewicht = num(document.getElementById('zuggewicht').value);
-      let neigung = num(document.getElementById('neigung').value);
-      const resultBox = document.getElementById('result-bremse');
-      const resultVal = document.getElementById('bremse-wert');
-
-      if (!gewicht) {
-        resultBox.classList.remove('visible');
-        return;
-      }
-      if (isNaN(neigung) || neigung < 2.5) {
-        neigung = 2.5; // Eisenbahn-Mindestwert lt. örtlicher Richtlinie
-      }
-
-      // Szenario 1: Gefälle (Steilstrecken / Bahnhofsneigung)
-      const fParkSf = (gewicht * 9.81 * neigung / 1000) * 1.5;
-
-      // Szenario 2: Windlast (Flachland / Orkan-Zuschlag)
-      const fParkWind = (25 * gewicht / 1000) + (gewicht * 9.81 * neigung / 1000);
-
-      // Maßgebender Wert: Maximum aus beiden Szenarien, aufgerundet auf volle kN
-      const fErf = Math.max(fParkSf, fParkWind);
-      const fErfGerundet = Math.ceil(fErf);
-
-      resultVal.innerHTML = `${fErfGerundet} kN`;
-      resultBox.classList.add('visible');
-    }
-
-    // Rechner 2: Ist-Zeit läuft mit der Uhr mit, solange sie nicht von Hand
-    // geändert wurde. Aktualisierung beim Öffnen, beim Zurückkehren in die App
-    // und alle 15 Sekunden, solange das Modul offen ist.
-    let zeitIstAuto = true;
-    function zeitIstAktualisieren() {
-      if (!zeitIstAuto || currentModule !== 'zeit') return;
-      const now = new Date();
-      const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const el = document.getElementById('time2');
-      if (el.value !== hhmm) {
-        el.value = hhmm;
-        berechneZeit();
-      }
-    }
-    setInterval(zeitIstAktualisieren, 15000);
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) zeitIstAktualisieren();
-    });
-
-    // Rechner 2: Zeitdifferenz
-    function berechneZeit() {
-      const t1 = document.getElementById('time1').value;
-      const t2 = document.getElementById('time2').value;
-      const resultBox = document.getElementById('result-zeit');
-
-      if (!t1 || !t2) {
-        resultBox.classList.remove('visible');
-        return;
-      }
-
-      const [h1, m1] = t1.split(':').map(Number);
-      const [h2, m2] = t2.split(':').map(Number);
-
-      // Ohne Datum, nur mit zwei Uhrzeiten, ist nicht eindeutig entscheidbar,
-      // ob Mitternacht überschritten wurde oder nicht — "4 Std. zu früh" und
-      // "20 Std. zu spät" erzeugen exakt dieselben zwei Uhrzeiten. Deshalb
-      // zeigen wir beide möglichen Lesarten nebeneinander an; der Mitarbeiter
-      // weiß ja selbst, ob er zu früh oder zu spät war.
-      const diffSameDay = (h2 * 60 + m2) - (h1 * 60 + m1);
-      const spaetMin = ((diffSameDay % 1440) + 1440) % 1440; // immer in [0, 1440)
-      const fruehMin = spaetMin === 0 ? 0 : spaetMin - 1440;  // immer in (-1440, 0]
-
-      const fmt = (min) => `${Math.abs(min)} Min.`;
-
-      document.getElementById('zeit-wert-spaet').textContent = spaetMin === 0 ? '—' : fmt(spaetMin);
-      document.getElementById('zeit-wert-frueh').textContent = fruehMin === 0 ? '—' : fmt(fruehMin);
-
-      resultBox.classList.add('visible');
-    }
-
-    // ===== Modul 3: Bremsberechnung (Ril 408) =====
-    // Lok-Datenbank (B408_LOK_DB) liegt jetzt in js/lok-db.js, eingebunden per
-    // <script src="js/lok-db.js"> im <head>, damit sie hier bereits verfügbar ist.
-
-    let b408Loks = [];
-    let b408CurrentRuleMode = "RIL"; // RIL oder EVU
-
-    function b408SetRuleMode(mode) {
-      b408CurrentRuleMode = mode;
-      try {
-        localStorage.setItem("brems_rule_mode", mode);
-      } catch (e) { /* localStorage evtl. nicht verfügbar */ }
-
-      document.getElementById("b408-rule-ril").classList.toggle("active", mode === "RIL");
-      document.getElementById("b408-rule-evu").classList.toggle("active", mode === "EVU");
-    }
-
-    function b408AddLok() {
-      if (b408Loks.length >= 3) return;
-      const id = Date.now();
-      const defaultType = "193";
-      b408Loks.push({
-        id: id,
-        type: defaultType,
-        mass: B408_LOK_DB[defaultType].mass,
-        pos: "G"
-      });
-      b408RenderLoks();
-      b408AutoCheckMass();
-      const container = document.getElementById("b408-lok-container");
-      const newIndex = b408Loks.length - 1;
-      b408LastActiveIndex = newIndex;
-      container.scrollTo({ left: newIndex * container.clientWidth, behavior: 'smooth' });
-    }
-
-    function b408RemoveLok(id) {
-      if (b408Loks.length <= 1) return;
-      b408Loks = b408Loks.filter(l => l.id !== id);
-      b408LastActiveIndex = 0;
-      b408RenderLoks();
-      b408AutoCheckMass();
-      document.getElementById('b408-lok-container').scrollTo({ left: 0, behavior: 'smooth' });
-    }
-
-    function b408SetLokType(id, type) {
-      const lok = b408Loks.find(l => l.id === id);
-      if (lok) {
-        lok.type = type;
-        lok.mass = B408_LOK_DB[type].mass; // Standardgewicht bei Typwechsel übernehmen
-        b408RenderLoks();
-        b408AutoCheckMass();
-      }
-    }
-
-    function b408SetLokMass(id, massValue) {
-      // Bewusst KEIN b408RenderLoks()/b408AutoCheckMass() hier — das würde bei
-      // jedem Tastendruck das komplette Lok-Karussell neu aufbauen, den Fokus
-      // (Tastatur) killen und die Scroll-Position auf Lok 1 zurückspringen
-      // lassen. Lokgewicht beeinflusst die G/P-Automatik ohnehin nicht (die
-      // hängt nur am Wagenzuggewicht) — ein einfaches Datenupdate reicht.
-      const lok = b408Loks.find(l => l.id === id);
-      if (lok) {
-        lok.mass = num(massValue) || 0;
-      }
-    }
-
-    function b408SetLokPos(id, pos) {
-      const lok = b408Loks.find(l => l.id === id);
-      if (lok) {
-        lok.pos = pos;
-        b408RenderLoks();
-      }
-    }
-
-    function b408RenderLoks() {
-      const container = document.getElementById("b408-lok-container");
-      container.innerHTML = "";
-
-      b408Loks.forEach((lok, index) => {
-        const lokElement = document.createElement("div");
-        lokElement.className = "lok-item";
-        lokElement.innerHTML = `
-          <div class="lok-header">
-            <span>LOK ${index + 1}</span>
-            ${b408Loks.length > 1 ? `<button class="btn-remove" onclick="b408RemoveLok(${lok.id})">&times;</button>` : ''}
-          </div>
-          <div class="form-group">
-            <label>Baureihe</label>
-            <select onchange="b408SetLokType(${lok.id}, this.value)">
-              ${Object.keys(B408_LOK_DB).map(key => `
-                <option value="${key}" ${lok.type === key ? 'selected' : ''}>
-                  ${B408_LOK_DB[key].name}
-                </option>
-              `).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Lokgewicht (t)</label>
-            <input type="number" value="${lok.mass}" inputmode="numeric" onchange="b408SetLokMass(${lok.id}, this.value)" oninput="b408SetLokMass(${lok.id}, this.value)">
-          </div>
-          <div class="form-group">
-            <label>Bremsstellung</label>
-            <div class="gpr-toggle">
-              <div class="gpr-btn ${lok.pos === 'G' ? 'active' : ''}" onclick="b408SetLokPos(${lok.id}, 'G')">G</div>
-              <div class="gpr-btn ${lok.pos === 'P' ? 'active' : ''}" onclick="b408SetLokPos(${lok.id}, 'P')">P</div>
-              <div class="gpr-btn ${lok.pos === 'R' ? 'active' : ''}" onclick="b408SetLokPos(${lok.id}, 'R')">R</div>
-            </div>
-          </div>
-        `;
-        container.appendChild(lokElement);
-      });
-
-      // Add-Lok-Karte ans Ende hängen, solange die Obergrenze (3) nicht erreicht ist
-      if (b408Loks.length < 3) {
-        const addCard = document.createElement("div");
-        addCard.className = "lok-add-card";
-        addCard.onclick = b408AddLok;
-        addCard.innerHTML = `
-          <svg viewBox="0 0 64 64" width="36" height="36" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="10" y="22" width="36" height="18" rx="3"/>
-            <rect x="18" y="12" width="14" height="10" rx="2"/>
-            <circle cx="20" cy="44" r="4"/>
-            <circle cx="36" cy="44" r="4"/>
-            <line x1="46" y1="30" x2="54" y2="30"/>
-          </svg>
-          <span>+ Lok hinzufügen</span>
-        `;
-        container.appendChild(addCard);
-      }
-
-      // Punkte-Indikator (eine pro Lok, nicht für die Add-Karte)
-      const dotsEl = document.getElementById("b408-lok-dots");
-      dotsEl.innerHTML = b408Loks.map((_, i) => `<span class="lok-dot ${i === b408LastActiveIndex ? 'active' : ''}"></span>`).join('');
-
-      document.getElementById("b408-lok-count").innerText = `${b408Loks.length} / 3`;
-    }
-
-    // Verfolgt, welche Lok-Karte gerade im sichtbaren Bereich des Karussells ist,
-    // damit der Punkte-Indikator mitwandert und nach "+ Lok hinzufügen" automatisch
-    // zur neuen Karte gescrollt wird.
-    let b408LastActiveIndex = 0;
-
-    function b408CarouselScrolled() {
-      const container = document.getElementById("b408-lok-container");
-      const cardWidth = container.clientWidth;
-      if (!cardWidth) return;
-      const index = Math.round(container.scrollLeft / cardWidth);
-      if (index !== b408LastActiveIndex && index < b408Loks.length) {
-        b408LastActiveIndex = index;
-        document.querySelectorAll('#b408-lok-dots .lok-dot').forEach((dot, i) => {
-          dot.classList.toggle('active', i === index);
-        });
-      }
-    }
-
-    // Automatische Anpassung je nach Wagenzuggewicht (> 800 t -> G, sonst -> P).
-    // Wichtig: bezieht sich nur auf das Wagenzuggewicht, NICHT auf die Gesamtmasse
-    // inkl. Lok — sonst würde die Lok selbst die Schwelle mit nach oben ziehen.
-    // Keine Sperre: der Nutzer kann danach jederzeit manuell auf G/P/R wechseln,
-    // die Automatik greift nur erneut, wenn sich das Zuggewicht ändert.
-    function b408AutoCheckMass() {
-      const wagenMasse = num(document.getElementById("b408-wagen-gewicht").value) || 0;
-      const zielPos = wagenMasse > 800 ? "G" : "P";
-
-      b408Loks.forEach(l => {
-        l.pos = zielPos;
-      });
-      b408RenderLoks();
-    }
-
-    function b408CalculateBrakes() {
-      const wagenGewicht = Math.ceil(num(document.getElementById("b408-wagen-gewicht").value) || 0);
-      const wagenLaengeInput = num(document.getElementById("b408-wagen-laenge").value) || 0;
-      const wagenP = Math.floor(num(document.getElementById("b408-wagen-p").value) || 0);
-      const wagenG = Math.floor(num(document.getElementById("b408-wagen-g").value) || 0);
-
-      // Grundsatz: Längen nach OBEN runden
-      const wagenLaenge = Math.ceil(wagenLaengeInput);
-
-      let lokGewichtGesamt = 0;
-      let lokLuepGesamt = 0;
-      let lokBremsP_R = 0;
-      let lokBremsG_Raw = 0;
-      let allLoksInG = true;
-
-      b408Loks.forEach(l => {
-        const data = B408_LOK_DB[l.type];
-        lokGewichtGesamt += Math.ceil(num(l.mass) || 0);
-        lokLuepGesamt += data.luep;
-
-        if (l.pos === "G") {
-          lokBremsG_Raw += data.g;
-        } else {
-          allLoksInG = false;
-          if (l.pos === "P") lokBremsP_R += data.p;
-          if (l.pos === "R") lokBremsP_R += data.r;
-        }
-      });
-
-      const gesamtMasse = wagenGewicht + lokGewichtGesamt;
-      const gesamtLaenge = wagenLaenge + lokLuepGesamt;
-
-      if (gesamtMasse === 0) {
-        alert("Bitte gib ein gültiges Wagenzuggewicht ein.");
-        return;
-      }
-
-      if (wagenLaengeInput === 0) {
-        alert("Bitte gib die Wagenzuglänge ein. Ohne sie kann der Längenabzug nicht korrekt berechnet werden.");
-        return;
-      }
-
-      const isReinerGZug = (wagenP === 0 && wagenG > 0 && allLoksInG);
-
-      let laengenAbzugProzent = 0;
-      let wagenBremsEffektiv = 0;
-      let lokBremsEffektiv = 0;
-      let wirksamesBremsgewicht = 0;
-      let hatGAnteil = false;
-
-      if (isReinerGZug) {
-        wagenBremsEffektiv = wagenG;
-        lokBremsEffektiv = lokBremsG_Raw;
-        wirksamesBremsgewicht = wagenBremsEffektiv + lokBremsEffektiv;
-        laengenAbzugProzent = 0;
-      } else {
-        // Längenabzug ermitteln (Gilt NUR auf P-Bremsgewichte), je nach Regel-Modus
-        if (gesamtLaenge > 500) {
-          if (b408CurrentRuleMode === "RIL") {
-            // Ril 408 Staffelung
-            if (gesamtLaenge > 700) laengenAbzugProzent = 19;
-            else if (gesamtLaenge > 600) laengenAbzugProzent = 10;
-            else laengenAbzugProzent = 5;
-          } else {
-            // BRW-EVU Regel: +1% je volle 20 m, max. 9%
-            const schritte20m = Math.floor((gesamtLaenge - 500) / 20);
-            laengenAbzugProzent = Math.min(9, schritte20m + 1);
-          }
-        }
-
-        const laengenFaktor = (100 - laengenAbzugProzent) / 100;
-
-        // P-Anteile: Wagenzug und Loks getrennt abgezogen (statt vorher zusammengezählt),
-        // damit sich die Aufschlüsselung Wagenzug/Loks unten sauber ausgeben lässt.
-        const wagenPEffektiv = Math.floor(wagenP * laengenFaktor);
-        const lokPEffektiv = Math.floor(lokBremsP_R * laengenFaktor);
-
-        const wagenGEffektiv = Math.floor(wagenG * 0.75);
-        const lokGEffektiv = Math.floor(lokBremsG_Raw * 0.75);
-
-        wagenBremsEffektiv = wagenPEffektiv + wagenGEffektiv;
-        lokBremsEffektiv = lokPEffektiv + lokGEffektiv;
-        wirksamesBremsgewicht = wagenBremsEffektiv + lokBremsEffektiv;
-
-        hatGAnteil = (wagenG > 0 || lokBremsG_Raw > 0);
-      }
-
-      const bremsProzent = Math.floor((wirksamesBremsgewicht / gesamtMasse) * 100);
-
-      document.getElementById("b408-res-prozent").innerText = `${bremsProzent} %`;
-      document.getElementById("b408-res-laenge").innerText = `${gesamtLaenge} m`;
-      document.getElementById("b408-res-masse").innerText = `${gesamtMasse} t`;
-      document.getElementById("b408-res-brems-wagen").innerText = `${wagenBremsEffektiv} t`;
-      document.getElementById("b408-res-brems-lok").innerText = `${lokBremsEffektiv} t`;
-      document.getElementById("b408-res-bremsgewicht").innerText = `${wirksamesBremsgewicht} t`;
-
-      // Abzüge-Zeile: G ist immer pauschal 25%, Länge ist dynamisch — beide
-      // parallel formatiert (Wert zuerst, dann Kennzeichen in Klammern).
-      const abzugRow = document.getElementById("b408-res-abzug-row");
-      const teile = [];
-      if (hatGAnteil) teile.push("25 % (G)");
-      if (!isReinerGZug) teile.push(`${laengenAbzugProzent} % Länge (P)`);
-      abzugRow.innerText = teile.length ? `Abzüge: ${teile.join(" · ")}` : "";
-      abzugRow.style.display = teile.length ? "block" : "none";
-
-      const resultCard = document.getElementById("b408-result-card");
-      resultCard.classList.add("visible");
-      resultCard.scrollIntoView({ behavior: 'smooth' });
-    }
-
-    // ===== Modul 4: Betriebsstellen-Suche (Ril 100 + ÖBB) =====
-    // Zwei getrennte Quelldateien (DE: data/betriebsstellen.json, AT: data/betriebsstellen-at.json),
-    // werden beim ersten Öffnen des Tabs parallel per fetch() nachgeladen und zu einer
-    // gemeinsamen Suchliste zusammengeführt — nicht beim App-Start, um die Ladezeit der
-    // App selbst nicht zu belasten. Der Service Worker cacht beide Anfragen danach
-    // automatisch für Offline-Nutzung (siehe sw.js).
-    // Österreichische Stellen führen ihren eigenen ÖBB-Kurzcode (z. B. "Sb" für Salzburg
-    // Hbf), nicht den deutschen Ril100-Code mit "XA"-Präfix — die passenden XA-Einträge
-    // wurden daher aus der DE-Datei entfernt, um Duplikate zu vermeiden.
-    // Zeilenformat je Eintrag: [code, name, kurzname, kategorie, status, land]
-    let bstData = null;
-    let bstLoading = false;
-    let bstSearchTimer = null;
-    let bstLandFilter = 'ALL';
-
-    function bstSetLandFilter(land) {
-      bstLandFilter = land;
-      document.getElementById('bst-land-all').classList.toggle('active', land === 'ALL');
-      document.getElementById('bst-land-de').classList.toggle('active', land === 'DE');
-      document.getElementById('bst-land-at').classList.toggle('active', land === 'AT');
-      bstSearch();
-    }
-
-    function bstFlag(land) {
-      if (land === 'AT') return '🇦🇹';
-      if (land === 'DE') return '🇩🇪';
-      return '';
-    }
-
-    function bstEscapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    }
-
-    // Entfernung Luftlinie zwischen zwei Koordinaten (Haversine), in km
-    function bstHaversine(lat1, lon1, lat2, lon2) {
-      const R = 6371;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2
-        + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    function bstFormatDistance(km) {
-      return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
-    }
-
-    // Nicht jede Betriebsstelle hat Koordinaten hinterlegt (DE: nur die auf dem
-    // aktiven Streckennetz verorteten ~7.700 von 24.948 Einträgen; AT: alle 1.368).
-    // Einträge ohne Koordinaten werden hier einfach übersprungen.
-    function bstShowNearby() {
-      const statusEl = document.getElementById('bst-status');
-      const resultsEl = document.getElementById('bst-results');
-
-      if (!bstData) {
-        bstEnsureLoaded();
-        statusEl.textContent = 'Datenbank lädt noch, bitte kurz erneut versuchen.';
-        return;
-      }
-
-      if (!navigator.geolocation) {
-        statusEl.textContent = 'Standortabfrage wird von diesem Browser nicht unterstützt.';
-        return;
-      }
-
-      statusEl.textContent = 'Ermittle Standort …';
-      resultsEl.innerHTML = '';
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const userLat = pos.coords.latitude;
-          const userLon = pos.coords.longitude;
-
-          const withDist = bstData
-            .filter(row => {
-              const [, , , , , land, lat, lon] = row;
-              if (lat == null || lon == null) return false;
-              if (bstLandFilter !== 'ALL' && land !== bstLandFilter) return false;
-              return true;
-            })
-            .map(row => {
-              const [, , , , , , lat, lon] = row;
-              return { row, dist: bstHaversine(userLat, userLon, lat, lon) };
-            })
-            .sort((a, b) => a.dist - b.dist)
-            .slice(0, 30);
-
-          document.getElementById('bst-search').value = '';
-
-          const totalWithCoords = bstData.filter(r => r[6] != null
-            && (bstLandFilter === 'ALL' || r[5] === bstLandFilter)).length;
-          statusEl.textContent = withDist.length
-            ? `${withDist.length} nächstgelegene Betriebsstellen (von ${totalWithCoords} mit hinterlegten Koordinaten).`
-            : 'Keine Betriebsstelle mit Koordinaten im gewählten Filter gefunden.';
-
-          resultsEl.innerHTML = withDist.map(({ row, dist }) => {
-            const [code, name, kurz, kat, status, land] = row;
-            const statusBadge = (status && status !== 'Betrieb')
-              ? `<span class="bst-status-badge">${bstEscapeHtml(status)}</span>`
-              : '';
-            return `
-              <div class="bst-item">
-                <div class="bst-item-top">
-                  <span class="bst-code">${bstEscapeHtml(code)}</span>
-                  <span class="bst-item-right">
-                    <span class="bst-land">${bstFlag(land)}</span>
-                    <span class="bst-kat">${bstEscapeHtml(kat || '')}</span>
-                  </span>
-                </div>
-                <div class="bst-name">${bstEscapeHtml(name)} · <span class="bst-distance">${bstFormatDistance(dist)}</span></div>
-                ${statusBadge}
-              </div>
-            `;
-          }).join('');
-        },
-        (err) => {
-          let msg = `Standort konnte nicht ermittelt werden (Code ${err.code}: ${err.message}).`;
-          if (err.code === err.PERMISSION_DENIED) {
-            msg = 'Standortzugriff wurde verweigert — bitte in den Browser-/App-Einstellungen erlauben.';
-          } else if (err.code === err.TIMEOUT) {
-            msg = 'Standortabfrage hat zu lange gedauert (kein GPS-Fix). Prüfe, ob die Standortdienste am Handy generell aktiv sind, und versuch es an einer Stelle mit freier Sicht zum Himmel erneut.';
-          } else if (err.code === err.POSITION_UNAVAILABLE) {
-            msg = 'Standort nicht verfügbar — sind die Standortdienste (GPS) am Handy in den Systemeinstellungen aktiviert?';
-          }
-          statusEl.textContent = msg;
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-      );
-    }
-
-    // ===== Modul 5: Fahrtenbuch =====
-    // Schicht-Modell statt Kalendertag: "Abfahrt" beginnt eine neue Schicht,
-    // "Stopp"/"Weiterfahrt" wechseln innerhalb der Schicht zwischen Fahrt und
-    // Stand, "Schicht beenden" schließt sie ab. Die Zeit ZWISCHEN zwei
-    // Schichten (z. B. Feierabend bis zum nächsten Dienstantritt) zählt
-    // bewusst zu KEINER der beiden Schichten — kein künstlicher Stand-Eintrag.
-    // Rein manuell, keine Hintergrund-Standortverfolgung — nur beim
-    // Tastendruck wird einmalig der Standort abgefragt. Log liegt in
-    // localStorage, damit nichts verloren geht, wenn die App zwischendurch
-    // geschlossen wird. Ältere Schichten bleiben dauerhaft gespeichert und
-    // einzeln exportierbar — kein automatisches Löschen, keine Erinnerungen.
-    // WICHTIG: Dieses Modul wird absichtlich NICHT durch resetModuleState()
-    // zurückgesetzt — eine Schicht soll über mehrere App-Besuche bestehen bleiben.
-    const FB_STORAGE_KEY = 'tfFahrtenbuchLog';
-    const FB_ROUTES_KEY = 'tfFahrtenbuchRoutes';
-    const FB_COLLAPSED_KEY = 'tfFahrtenbuchCollapsedShift';
-    let fbLog = []; // flache Liste: {type: 'start'|'stopp'|'ende', time, ort}
-    // Start-Zeit (ISO) der abgeschlossenen Schicht, die der Nutzer per "✓ Fertig"
-    // vorzeitig in "Frühere Schichten" einsortiert hat, statt zu warten, bis die
-    // nächste Schicht beginnt. Eindeutig genug als Schlüssel, da Schichten sich
-    // nicht überlappen. null = nichts manuell eingeklappt.
-    let fbCollapsedShiftStart = null;
-
-    function fbLoadCollapsed() {
-      try {
-        fbCollapsedShiftStart = localStorage.getItem(FB_COLLAPSED_KEY) || null;
-      } catch (e) {
-        fbCollapsedShiftStart = null;
-      }
-    }
-
-    // Wird vor jedem neuen Log-Eintrag aufgerufen: beginnt der Eintrag eine
-    // brandneue Schicht (Log leer oder letzter Eintrag war "ende"), wird ein
-    // evtl. gesetzter "✓ Fertig"-Marker der vorherigen Schicht aufgeräumt —
-    // der ist dann ohnehin hinfällig, weil die Schicht automatisch nach unten
-    // wandert, sobald eine neue beginnt.
-    function fbMaybeClearCollapsedOnNewShift() {
-      if (fbLog.length === 0 || fbLog[fbLog.length - 1].type === 'ende') {
-        fbCollapsedShiftStart = null;
-        try { localStorage.removeItem(FB_COLLAPSED_KEY); } catch (e) { /* localStorage evtl. nicht verfügbar */ }
-      }
-    }
-
-    function fbCollapseCurrentShift() {
-      const shifts = fbBuildShifts();
-      const shift = shifts[shifts.length - 1];
-      if (!shift || shift.open) return;
-      fbCollapsedShiftStart = shift.start.time;
-      try {
-        localStorage.setItem(FB_COLLAPSED_KEY, fbCollapsedShiftStart);
-      } catch (e) { /* localStorage evtl. nicht verfügbar */ }
-      fbRender();
-    }
-    let fbPickerPurpose = null; // 'start' | 'stopp' | 'durch' | 'ende' — welcher Eintragstyp als nächstes gespeichert wird
-    let fbPickerCandidates = [];
-
-    function fbLoad() {
-      try {
-        const raw = localStorage.getItem(FB_STORAGE_KEY);
-        fbLog = raw ? JSON.parse(raw) : [];
-      } catch (e) {
-        fbLog = [];
-      }
-    }
-
-    function fbSave() {
-      try {
-        localStorage.setItem(FB_STORAGE_KEY, JSON.stringify(fbLog));
-      } catch (e) {
-        console.log('Fahrtenbuch: Speichern fehlgeschlagen', e);
-      }
-    }
-
-    function fbFormatTime(iso) {
-      const d = new Date(iso);
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    }
-
-    function fbFormatDateTime(iso) {
-      const d = new Date(iso);
-      return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}. ${fbFormatTime(iso)}`;
-    }
-
-    function fbFormatDuration(ms) {
-      const totalMin = Math.ceil(ms / 60000);
-      const h = Math.floor(totalMin / 60);
-      const m = totalMin % 60;
-      return h > 0 ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min`;
-    }
-
-    // 'idle' = keine Schicht offen, 'fahrt' = Schicht läuft, fährt gerade,
-    // 'stand' = Schicht läuft, steht gerade (Weiterfahrt oder Beenden möglich)
-    function fbCurrentStatus() {
-      if (fbLog.length === 0) return 'idle';
-      const lastType = fbLog[fbLog.length - 1].type;
-      if (lastType === 'ende') return 'idle';
-      return lastType === 'stopp' ? 'stand' : 'fahrt'; // 'start' und 'durch' = fährt
-    }
-
-    // Roter Punkt auf der Fahrtenbuch-Kachel im Hauptmenü, solange eine
-    // Schicht offen ist (egal ob gerade gefahren oder gestanden wird).
-    function fbUpdateBadge() {
-      const badge = document.getElementById('fb-badge');
-      if (!badge) return;
-      badge.style.display = fbCurrentStatus() !== 'idle' ? 'block' : 'none';
-    }
-
-    // Zerlegt das Log in einzelne Schichten. Eine Schicht beginnt direkt nach
-    // einem 'ende'-Eintrag (oder am Log-Anfang) und läuft bis zum nächsten
-    // 'ende' (geschlossen) oder bis zum Log-Ende (offen, noch laufend).
-    function fbBuildShifts() {
-      const shifts = [];
-      let current = [];
-      fbLog.forEach(entry => {
-        current.push(entry);
-        if (entry.type === 'ende') {
-          shifts.push(current);
-          current = [];
-        }
-      });
-      if (current.length > 0) shifts.push(current);
-
-      return shifts.map(entries => {
-        const segments = [];
-        for (let i = 0; i < entries.length - 1; i++) {
-          const a = entries[i];
-          const b = entries[i + 1];
-          const dauerMs = new Date(b.time) - new Date(a.time);
-          if (dauerMs <= 0) continue; // z.B. direkte Ankunft ohne Weiterfahrt — kein eigener Eintrag nötig
-          segments.push({
-            art: a.type === 'stopp' ? 'Stand' : 'Fahrt', // 'start' und 'durch' = Fahrt
-            von: a.ort.code,
-            bis: b.ort.code,
-            bisDurch: b.type === 'durch',
-            zeitVon: a.time,
-            zeitBis: b.time,
-            dauerMs
-          });
-        }
-        let fahrzeitMs = 0, stehzeitMs = 0;
-        segments.forEach(s => {
-          if (s.art === 'Fahrt') fahrzeitMs += s.dauerMs; else stehzeitMs += s.dauerMs;
-        });
-        return {
-          entries,
-          segments,
-          open: entries[entries.length - 1].type !== 'ende',
-          start: entries[0],
-          end: entries[entries.length - 1].type === 'ende' ? entries[entries.length - 1] : null,
-          fahrzeitMs,
-          stehzeitMs
-        };
-      });
-    }
-
-    // ===== Beobachtete Strecken (Start -> Ziel, reine Fahrzeit-Historie) =====
-    // Eine "Strecke" ist ein Start-Code + Ziel-Code-Paar. Gematcht wird nicht
-    // nur Schicht-Start/-Ende, sondern JEDER "start"-Eintrag (erste Abfahrt
-    // oder Weiterfahrt nach einem Zwischenstopp) als möglicher Von-Punkt und
-    // JEDER "stopp"/"ende"-Eintrag als möglicher Bis-Punkt innerhalb derselben
-    // Schicht — so werden auch Teilstrecken (z. B. Würzburg -> München-Leim
-    // als Zwischenstopp vor der Weiterfahrt nach Kufstein) erfasst, sobald an
-    // der Zwischenstation kurz Stopp/Weiterfahrt gedrückt wurde. Erfasste
-    // Treffer werden EINMALIG dauerhaft in route.fahrten eingetragen
-    // (fbSyncRoutes()), nicht nur live aus fbLog nachgerechnet. Dadurch bleibt
-    // die Strecken-Statistik erhalten, auch wenn später "Alle Schichten
-    // löschen" gedrückt wird. Erfasst wird bewusst nur die reine Fahrzeit
-    // zwischen Von- und Bis-Punkt (ohne dortige Standzeiten), keine
-    // Standzeiten an etwaigen Zwischenstopps.
-    let fbRoutes = [];
-
-    function fbLoadRoutes() {
-      try {
-        const raw = localStorage.getItem(FB_ROUTES_KEY);
-        fbRoutes = raw ? JSON.parse(raw) : [];
-      } catch (e) {
-        fbRoutes = [];
-      }
-      // Ältere Strecken (vor Einführung der dauerhaften Historie) bekommen
-      // ein leeres fahrten-Array, damit fbSyncRoutes() sie befüllen kann.
-      fbRoutes.forEach(r => { if (!r.fahrten) r.fahrten = []; });
-    }
-
-    function fbSaveRoutes() {
-      try {
-        localStorage.setItem(FB_ROUTES_KEY, JSON.stringify(fbRoutes));
-      } catch (e) {
-        console.log('Strecken: Speichern fehlgeschlagen', e);
-      }
-    }
-
-    // Gleicht alle beobachteten Strecken gegen den aktuellen Schicht-Verlauf
-    // ab und trägt neu gefundene, passende Fahrten dauerhaft ein. Jede Schicht
-    // wird anhand ihrer Start-Uhrzeit (eindeutig, da sich Schichten nicht
-    // überlappen) als "schon erfasst" markiert, damit nichts doppelt gezählt
-    // wird, egal wie oft fbSyncRoutes() aufgerufen wird.
-    function fbSyncRoutes() {
-      if (fbRoutes.length === 0) return;
-      const shifts = fbBuildShifts();
-      let changed = false;
-      fbRoutes.forEach(route => {
-        shifts.forEach(shift => {
-          if (!shift.end) return; // offene (laufende) Schicht noch nicht werten
-          const entries = shift.entries;
-          let i = 0;
-          while (i < entries.length) {
-            // Von-Punkt: jede Abfahrt (erster Start oder Weiterfahrt nach
-            // Zwischenstopp) am gesuchten Von-Ort.
-            // (auch eine Durchfahrt zählt als Von-Punkt)
-            if ((entries[i].type !== 'start' && entries[i].type !== 'durch') || entries[i].ort.code !== route.von) { i++; continue; }
-            // nächsten passenden Bis-Punkt danach suchen (Stopp oder Ende).
-            let j = i + 1;
-            let found = -1;
-            while (j < entries.length) {
-              if ((entries[j].type === 'stopp' || entries[j].type === 'ende' || entries[j].type === 'durch') && entries[j].ort.code === route.bis) {
-                found = j;
-                break;
-              }
-              j++;
-            }
-            if (found === -1) { i++; continue; }
-            // reine Fahrzeit zwischen Von und Bis (Standzeiten an eventuellen
-            // Zwischenstopps dazwischen nicht mitzählen).
-            let fahrzeitMs = 0;
-            for (let k = i; k < found; k++) {
-              if (entries[k].type === 'stopp') continue; // Standzeit nicht zählen ('start' und 'durch' = Fahrt)
-              fahrzeitMs += new Date(entries[k + 1].time) - new Date(entries[k].time);
-            }
-            const schonErfasst = route.fahrten.some(f => f.datum === entries[i].time);
-            if (!schonErfasst) {
-              route.fahrten.push({ fahrzeitMs, datum: entries[i].time });
-              changed = true;
-            }
-            i = found + 1; // weitersuchen, falls dieselbe Teilstrecke in der Schicht nochmal vorkommt
-          }
-        });
-      });
-      if (changed) fbSaveRoutes();
-    }
-
-    // Umschalten zwischen den beiden Fahrtenbuch-Unteransichten "Fahrten"
-    // (Start/Stopp-Steuerung + Verlauf) und "Strecken" (Beobachtete Strecken),
-    // damit die Streckenstatistik nicht immer weiter nach unten rutscht, je
-    // mehr Schichten im Verlauf stehen.
-    function fbSetSubView(view) {
-      const fahrtenEl = document.getElementById('fb-view-fahrten');
-      const streckenEl = document.getElementById('fb-view-strecken');
-      const fahrtenBtn = document.getElementById('fb-subtab-fahrten');
-      const streckenBtn = document.getElementById('fb-subtab-strecken');
-      if (!fahrtenEl || !streckenEl) return;
-      const zeigeStrecken = view === 'strecken';
-      fahrtenEl.style.display = zeigeStrecken ? 'none' : '';
-      streckenEl.style.display = zeigeStrecken ? '' : 'none';
-      fahrtenBtn.classList.toggle('active', !zeigeStrecken);
-      streckenBtn.classList.toggle('active', zeigeStrecken);
-    }
-
-    // Welche Strecken (per Index in fbRoutes) gerade aufgeklappt sind. Bleibt
-    // nur für die laufende Sitzung im Speicher, kein Persistierungsbedarf.
-    let fbRoutesExpanded = new Set();
-
-    function fbToggleRouteExpand(i) {
-      if (fbRoutesExpanded.has(i)) fbRoutesExpanded.delete(i); else fbRoutesExpanded.add(i);
-      fbRenderRoutes();
-    }
-
-    function fbRenderRoutes() {
-      const listEl = document.getElementById('fb-routes-list');
-      const searchWrap = document.getElementById('fb-route-search-wrap');
-      if (!listEl) return;
-      fbSyncRoutes();
-
-      if (fbRoutes.length === 0) {
-        if (searchWrap) searchWrap.style.display = 'none';
-        listEl.innerHTML = '<div class="bst-empty">Noch keine Strecke beobachtet.</div>';
-        return;
-      }
-      if (searchWrap) searchWrap.style.display = '';
-
-      const searchEl = document.getElementById('fb-route-search');
-      const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
-      // Mehrere Suchwörter (Leerzeichen-getrennt) werden UND-verknüpft: eine
-      // Strecke muss ALLE eingegebenen Wörter irgendwo enthalten (Von, Bis,
-      // Code), nicht nur eins. So wird z. B. "Würzburg München" zur
-      // dynamischen Gruppierung über alle Würzburg↔München-Bahnhofsvarianten,
-      // ohne dass irgendwas statisch angelegt/gepflegt werden muss.
-      const terms = q.split(/\s+/).filter(Boolean);
-      const indices = fbRoutes
-        .map((route, i) => i)
-        .filter(i => {
-          if (terms.length === 0) return true;
-          const r = fbRoutes[i];
-          const haystack = `${r.vonName} ${r.bisName} ${r.von} ${r.bis}`.toLowerCase();
-          return terms.every(t => haystack.includes(t));
-        })
-        // Alphabetisch nach Von-Ort (dann Bis-Ort als Tiebreaker) statt nach
-        // Einfüge-Reihenfolge — so stehen zusammengehörige Strecken (gleicher
-        // Startort, egal welcher genaue Bahnhofsteil) automatisch beieinander,
-        // ganz ohne manuelle Kategorie.
-        .sort((a, b) => {
-          const ra = fbRoutes[a], rb = fbRoutes[b];
-          return ra.vonName.localeCompare(rb.vonName, 'de') || ra.bisName.localeCompare(rb.bisName, 'de');
-        });
-
-      if (indices.length === 0) {
-        listEl.innerHTML = '<div class="bst-empty">Keine Strecke gefunden.</div>';
-        return;
-      }
-
-      // Zusammenfassungszeile nur bei aktiver Suche mit Treffern — zeigt
-      // Anzahl + kombinierten Ø/Min/Max über alle gerade gefilterten
-      // Strecken. Verschwindet wieder, sobald die Suche geleert wird.
-      let summaryHtml = '';
-      if (terms.length > 0) {
-        const alleFahrten = indices.flatMap(i => fbRoutes[i].fahrten);
-        if (alleFahrten.length > 0) {
-          const avgMs = alleFahrten.reduce((s, t) => s + t.fahrzeitMs, 0) / alleFahrten.length;
-          const minMs = Math.min(...alleFahrten.map(t => t.fahrzeitMs));
-          const maxMs = Math.max(...alleFahrten.map(t => t.fahrzeitMs));
-          summaryHtml = `
-            <div class="fb-route-search-summary">
-              Ø ${fbFormatDuration(avgMs)} · ${indices.length} Strecke${indices.length === 1 ? '' : 'n'} gefunden<br>
-              Min ${fbFormatDuration(minMs)} · Max ${fbFormatDuration(maxMs)} (${alleFahrten.length} Fahrt${alleFahrten.length === 1 ? '' : 'en'} gesamt)
-            </div>
-          `;
-        } else {
-          summaryHtml = `<div class="fb-route-search-summary">${indices.length} Strecke${indices.length === 1 ? '' : 'n'} gefunden · noch keine Fahrten erfasst</div>`;
-        }
-      }
-
-      listEl.innerHTML = summaryHtml + indices.map(i => {
-        const route = fbRoutes[i];
-        const fahrten = route.fahrten;
-        const expanded = fbRoutesExpanded.has(i);
-        const avgText = fahrten.length > 0
-          ? `Ø ${fbFormatDuration(fahrten.reduce((sum, t) => sum + t.fahrzeitMs, 0) / fahrten.length)}`
-          : 'noch keine Fahrt';
-
-        let detail = '';
-        if (expanded) {
-          let statsHtml;
-          if (fahrten.length === 0) {
-            statsHtml = '<div class="fb-shift-entry-detail">Noch keine passende Fahrt aufgezeichnet.</div>';
-          } else {
-            const minMs = Math.min(...fahrten.map(t => t.fahrzeitMs));
-            const maxMs = Math.max(...fahrten.map(t => t.fahrzeitMs));
-            statsHtml = `<div class="fb-shift-entry-detail">Min ${fbFormatDuration(minMs)} · Max ${fbFormatDuration(maxMs)} (${fahrten.length} Fahrt${fahrten.length === 1 ? '' : 'en'})</div>`;
-          }
-          detail = `
-            <div class="fb-route-detail-expanded">
-              ${statsHtml}
-              <button class="fb-route-delete-btn-inline" onclick="event.stopPropagation(); fbRemoveRoute(${i})">🗑 Strecke entfernen</button>
-            </div>
-          `;
-        }
-
-        return `
-          <div class="fb-route-entry-compact">
-            <div class="fb-route-row-compact" onclick="fbToggleRouteExpand(${i})">
-              <span class="fb-route-chevron">${expanded ? '▾' : '▸'}</span>
-              <div class="fb-route-text-compact">
-                <span class="fb-route-title-compact">${bstEscapeHtml(route.vonName)} → ${bstEscapeHtml(route.bisName)}</span>
-                <span class="fb-route-avg-compact">${avgText}</span>
-              </div>
-            </div>
-            ${detail}
-          </div>
-        `;
-      }).join('');
-    }
-
-    function fbRemoveRoute(i) {
-      const r = fbRoutes[i];
-      if (!r) return;
-      if (!confirm(`Strecke ${r.vonName || r.von} → ${r.bisName || r.bis} wirklich entfernen? Die gespeicherte Statistik (Ø/Min/Max) dieser Strecke geht dabei verloren.`)) return;
-      fbRoutes.splice(i, 1);
-      fbRoutesExpanded.clear(); // Indizes verschieben sich, aufgeklappte Zustände verwerfen
-      fbSaveRoutes();
-      fbRenderRoutes();
-    }
-
-    // --- Picker zum Anlegen einer neuen Strecke (zweistufig: Start, dann Ziel) ---
-    let fbRoutePickerStage = null; // 'von' | 'bis'
-    let fbRoutePickerVon = null;   // {code, name} des gewählten Starts
-    let fbRoutePickerRows = [];
-
-    function fbOpenRouteAdd() {
-      fbRoutePickerStage = 'von';
-      fbRoutePickerVon = null;
-      document.getElementById('fb-main').style.display = 'none';
-      document.getElementById('fb-route-picker').style.display = 'block';
-      document.getElementById('fb-route-picker-title').textContent = 'Startort wählen';
-      document.getElementById('fb-route-picker-search').value = '';
-      document.getElementById('fb-route-picker-list').innerHTML = '';
-      bstEnsureLoaded();
-    }
-
-    function fbCloseRouteAdd() {
-      document.getElementById('fb-main').style.display = 'block';
-      document.getElementById('fb-route-picker').style.display = 'none';
-      fbRoutePickerStage = null;
-      fbRoutePickerVon = null;
-    }
-
-    function fbRoutePickerSearch() {
-      const q = document.getElementById('fb-route-picker-search').value.trim().toLowerCase();
-      const listEl = document.getElementById('fb-route-picker-list');
-      if (!q || !bstData) {
-        listEl.innerHTML = '';
-        fbRoutePickerRows = [];
-        return;
-      }
-      const matches = bstData.filter(row => {
-        const [code, name, kurz] = row;
-        return code.toLowerCase().includes(q) || name.toLowerCase().includes(q) || kurz.toLowerCase().includes(q);
-      }).slice(0, 30);
-      fbRoutePickerRows = matches;
-      listEl.innerHTML = matches.map((row, i) => {
-        const [code, name, kurz, kat, status, land] = row;
-        return `
-          <div class="bst-item" style="cursor: pointer;" onclick="fbRoutePickerSelect(${i})">
-            <div class="bst-item-top">
-              <span class="bst-code">${bstEscapeHtml(code)}</span>
-              <span class="bst-item-right">
-                <span class="bst-land">${bstFlag(land)}</span>
-                <span class="bst-kat">${bstEscapeHtml(kat || '')}</span>
-              </span>
-            </div>
-            <div class="bst-name">${bstEscapeHtml(name)}</div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function fbRoutePickerSelect(i) {
-      const row = fbRoutePickerRows[i];
-      if (!row) return;
-      const [code, name] = row;
-
-      if (fbRoutePickerStage === 'von') {
-        fbRoutePickerVon = { code, name };
-        fbRoutePickerStage = 'bis';
-        document.getElementById('fb-route-picker-title').textContent = 'Zielort wählen';
-        document.getElementById('fb-route-picker-search').value = '';
-        document.getElementById('fb-route-picker-list').innerHTML = '';
-        fbRoutePickerRows = [];
-      } else {
-        fbRoutes.push({ von: fbRoutePickerVon.code, vonName: fbRoutePickerVon.name, bis: code, bisName: name, fahrten: [] });
-        fbSaveRoutes();
-        fbCloseRouteAdd();
-        fbRenderRoutes();
-      }
-    }
-
-    // Baut die aufklappbare Fahrt-/Stand-Liste (neueste zuerst) — wird sowohl
-    // für die aktuelle Schicht oben als auch für frühere Schichten in der
-    // Liste verwendet, damit beide dasselbe Antipp-Verhalten haben.
-    function fbRenderSegmentList(segments) {
-      return segments.slice().reverse().map(s => `
-        <details class="fb-log-entry fb-log-${s.art === 'Fahrt' ? 'fahrt' : 'stand'}">
-          <summary class="fb-log-entry-top">
-            <span>${s.art}</span>
-            <span>${fbFormatDuration(s.dauerMs)}</span>
-          </summary>
-          <div class="fb-log-entry-detail">${fbFormatTime(s.zeitVon)} ${s.von} → ${fbFormatTime(s.zeitBis)} ${s.bis}${s.bisDurch ? ' 📍 Durchfahrt' : ''}</div>
-          <div class="fb-log-entry-detail fb-log-entry-exact">Von: ${fbFormatDateTime(s.zeitVon)} · Bis: ${fbFormatDateTime(s.zeitBis)}</div>
-        </details>
-      `).join('');
-    }
-
-    // Variante für frühere (abgeschlossene) Schichten: komplett ausgeschrieben,
-    // kein Antippen pro Abschnitt nötig, um Von/Bis zu sehen — anders als bei
-    // der aktuellen Schicht, wo die einklappbare Liste bleibt. Zeigt Datum nur
-    // einmal (nicht doppelt wie vorher mit Uhrzeit UND vollem Datum getrennt).
-    function fbRenderSegmentListFlat(segments) {
-      return segments.slice().reverse().map(s => `
-        <div class="fb-log-entry fb-log-${s.art === 'Fahrt' ? 'fahrt' : 'stand'}">
-          <div class="fb-log-entry-top" style="cursor: default;">
-            <span>${s.art}</span>
-            <span>${fbFormatDuration(s.dauerMs)}</span>
-          </div>
-          <div class="fb-log-entry-detail">${fbFormatDateTime(s.zeitVon)} ${s.von} → ${fbFormatDateTime(s.zeitBis)} ${s.bis}${s.bisDurch ? ' 📍 Durchfahrt' : ''}</div>
-        </div>
-      `).join('');
-    }
-
-    // Liefert eine kurze Bezeichnung für einen Log-Eintrag je nach Typ/Position,
-    // damit die Edit-Liste verständlich ist ("Abfahrt", "Stopp", "Weiterfahrt", "Ankunft").
-    function fbEntryLabel(entry, idx) {
-      if (entry.type === 'ende') return 'Ankunft';
-      if (entry.type === 'stopp') return 'Stopp';
-      if (entry.type === 'durch') return 'Durchfahrt';
-      return idx === 0 ? 'Abfahrt' : 'Weiterfahrt';
-    }
-
-    function fbTimeInputValue(iso) {
-      const d = new Date(iso);
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    }
-
-    // Öffnet ein Panel mit einem Zeit-Eingabefeld pro Eintrag der aktuellen/
-    // letzten Schicht. Ändert nur die Uhrzeit (Stunde/Minute), das Datum des
-    // jeweiligen Eintrags bleibt unangetastet — für den Fall "Pause vergessen
-    // zu drücken, Fahrzeit steht jetzt zu lang drin".
-    function fbOpenEdit() {
-      const shifts = fbBuildShifts();
-      const shift = shifts[shifts.length - 1];
-      if (!shift) return;
-
-      document.getElementById('fb-main').style.display = 'none';
-      document.getElementById('fb-edit-panel').style.display = 'block';
-
-      document.getElementById('fb-edit-list').innerHTML = shift.entries.map((entry, i) => `
-        <div class="fb-edit-row">
-          <div class="fb-edit-row-label">
-            ${fbEntryLabel(entry, i)}
-            <small>${bstEscapeHtml(entry.ort.name)}</small>
-          </div>
-          <input type="time" id="fb-edit-time-${i}" value="${fbTimeInputValue(entry.time)}" onclick="try{this.showPicker()}catch(e){}">
-        </div>
-      `).join('');
-    }
-
-    function fbCloseEdit() {
-      document.getElementById('fb-main').style.display = 'block';
-      document.getElementById('fb-edit-panel').style.display = 'none';
-    }
-
-    function fbSaveEdit() {
-      const shifts = fbBuildShifts();
-      const shift = shifts[shifts.length - 1];
-      if (!shift) return;
-
-      shift.entries.forEach((entry, i) => {
-        const val = document.getElementById(`fb-edit-time-${i}`).value; // "HH:MM"
-        if (!val) return;
-        const [h, m] = val.split(':').map(Number);
-        const d = new Date(entry.time);
-        d.setHours(h, m, 0, 0);
-        entry.time = d.toISOString(); // entry ist dieselbe Objektreferenz wie in fbLog
-      });
-
-      fbSave();
-      fbCloseEdit();
-      fbRender();
-    }
-
-    function fbRender() {
-      if (fbLog.length === 0) fbLoad();
-      fbUpdateBadge();
-      fbRenderRoutes();
-      const status = fbCurrentStatus();
-      const singleRow = document.getElementById('fb-btn-row-single');
-      const doubleRow = document.getElementById('fb-btn-row-double');
-      const mainBtn = document.getElementById('fb-main-btn');
-      const pingBtn = document.getElementById('fb-ping-btn');
-      pingBtn.style.display = status === 'fahrt' ? 'block' : 'none';
-      const label = document.getElementById('fb-status-label');
-      const detail = document.getElementById('fb-status-detail');
-
-      if (status === 'idle') {
-        singleRow.style.display = 'block';
-        doubleRow.style.display = 'none';
-        mainBtn.textContent = 'Starten';
-        mainBtn.className = 'fb-main-btn fb-btn-start';
-        mainBtn.onclick = () => fbPressButton('abfahrt');
-        pingBtn.style.display = 'none';
-        label.textContent = 'Bereit';
-        detail.textContent = 'Noch keine Fahrt begonnen.';
-      } else if (status === 'fahrt') {
-        singleRow.style.display = 'block';
-        doubleRow.style.display = 'none';
-        // letzte Abfahrt (nicht die letzte Durchfahrt) als "seit"
-        let last = fbLog[fbLog.length - 1];
-        for (let k = fbLog.length - 1; k >= 0; k--) { if (fbLog[k].type === 'start') { last = fbLog[k]; break; } }
-        mainBtn.textContent = 'Pause';
-        mainBtn.className = 'fb-main-btn fb-btn-stop';
-        mainBtn.onclick = () => fbPressButton('stopp');
-        label.textContent = 'Fährt';
-        detail.textContent = `Seit ${fbFormatTime(last.time)} ab ${last.ort.code}`;
-      } else {
-        singleRow.style.display = 'none';
-        doubleRow.style.display = 'block';
-        const last = fbLog[fbLog.length - 1];
-        label.textContent = 'Steht';
-        detail.textContent = `Seit ${fbFormatTime(last.time)} in ${last.ort.code}`;
-      }
-
-      const shifts = fbBuildShifts();
-      const lastShift = shifts.length > 0 ? shifts[shifts.length - 1] : null;
-      // Per "✓ Fertig" vorzeitig eingeklappte Schicht: zählt für die obere
-      // Anzeige als "nicht vorhanden" (verschwindet aus dem Blick, bis die
-      // nächste Schicht beginnt), taucht aber sofort unten bei den früheren
-      // Schichten auf — dort ohne Bearbeiten-Möglichkeit, wie alle anderen.
-      const isCollapsed = !!(lastShift && !lastShift.open && fbCollapsedShiftStart === lastShift.start.time);
-      const currentShift = isCollapsed ? null : lastShift;
-      const olderShifts = isCollapsed
-        ? shifts.slice().reverse()
-        : (shifts.length > 1 ? shifts.slice(0, -1).reverse() : []);
-      const olderIndexOffset = isCollapsed ? 1 : 2; // für die Rückrechnung auf den Index in "shifts"
-
-      document.getElementById('fb-log-title').textContent =
-        currentShift && currentShift.open ? 'Aktuelle Fahrt' : (currentShift ? 'Letzte Fahrt' : 'Keine aktuelle Fahrt');
-
-      const logEl = document.getElementById('fb-log');
-      const routeEl = document.getElementById('fb-route');
-      document.getElementById('fb-edit-link-wrap').style.display =
-        (currentShift && currentShift.entries.length > 1) ? 'block' : 'none';
-      document.getElementById('fb-collapse-link').style.display =
-        (currentShift && !currentShift.open) ? 'inline' : 'none';
-      if (!currentShift || currentShift.segments.length === 0) {
-        logEl.innerHTML = '<div class="bst-empty">Noch keine abgeschlossenen Abschnitte.</div>';
-        document.getElementById('fb-totals').textContent = '';
-        document.getElementById('fb-gesamtzeit').textContent = '';
-        routeEl.textContent = '';
-      } else {
-        document.getElementById('fb-gesamtzeit').textContent =
-          fbFormatDuration(currentShift.fahrzeitMs + currentShift.stehzeitMs);
-        document.getElementById('fb-totals').textContent =
-          `Fahrzeit ${fbFormatDuration(currentShift.fahrzeitMs)} · Standzeit ${fbFormatDuration(currentShift.stehzeitMs)}`;
-        const lastEntry = currentShift.entries[currentShift.entries.length - 1];
-        routeEl.textContent = `${currentShift.start.ort.name} → ${lastEntry.ort.name}`;
-        logEl.innerHTML = fbRenderSegmentList(currentShift.segments);
-      }
-
-      const olderWrap = document.getElementById('fb-older-wrap');
-      if (olderShifts.length === 0) {
-        olderWrap.style.display = 'none';
-      } else {
-        olderWrap.style.display = 'block';
-        document.getElementById('fb-older-list').innerHTML = olderShifts.map((shift, idx) => {
-          const realIndex = shifts.length - olderIndexOffset - idx; // Index in "shifts" (chronologisch)
-          const vonTxt = fbFormatDateTime(shift.start.time);
-          const bisTxt = shift.end ? fbFormatDateTime(shift.end.time) : 'läuft noch';
-          const lastEntry = shift.entries[shift.entries.length - 1];
-          const routeTxt = `${shift.start.ort.name} → ${lastEntry.ort.name}`;
-          return `
-            <div class="fb-shift-entry">
-              <div class="fb-shift-entry-top">
-                <span>${vonTxt} → ${bisTxt}</span>
-                <button class="fb-shift-export-btn" onclick="fbExportShift(${realIndex})" title="Exportieren" aria-label="Exportieren">📤</button>
-              </div>
-              <div class="fb-shift-entry-detail">${routeTxt}</div>
-              <div class="fb-shift-entry-detail">Fahrzeit ${fbFormatDuration(shift.fahrzeitMs)} · Standzeit ${fbFormatDuration(shift.stehzeitMs)}</div>
-              <details class="fb-shift-segments" ontoggle="this.firstElementChild.textContent = this.open ? 'Abschnitte ausblenden' : 'Abschnitte anzeigen'">
-                <summary>Abschnitte anzeigen</summary>
-                ${fbRenderSegmentListFlat(shift.segments)}
-              </details>
-            </div>
-          `;
-        }).join('');
-      }
-    }
-
-    let fbPickerPressTime = null;
-    function fbPickerEntryTime() {
-      // Durchfahrt: Zeit des Tastendrucks (man wählt den Ort erst danach aus)
-      return (fbPickerPurpose === 'durch' && fbPickerPressTime) ? fbPickerPressTime : new Date().toISOString();
-    }
-    let fbPickerDefaultOrt = null; // Schnellzugriff "wie zuletzt" (z.B. bei Weiterfahrt)
-
-    function fbPressButton(action) {
-      // 'beenden': du stehst schon seit dem letzten Stopp (sonst hättest du ja
-      // "Weiterfahrt" gedrückt) — die eigentliche Ankunftszeit UND der Ort sind
-      // also bereits der letzte Stopp, nicht der Moment des Tastendrucks.
-      // Übernimmt deshalb direkt, ohne Picker.
-      if (action === 'beenden') {
-        const last = fbLog[fbLog.length - 1];
-        fbLog.push({ type: 'ende', time: last.time, ort: last.ort });
-        fbSave();
-        fbRender();
-        // Nach einer beendeten Fahrt automatisch sichern (Strecken sind nach fbRender() aktuell).
-        // Kurze Verzögerung, aber noch innerhalb der Tipp-Geste, damit eine nötige Google-Anmeldung nicht blockiert wird.
-        if (gdriveEnabled()) setTimeout(() => gdriveBackup(false), 300);
-        return;
-      }
-      // 'weiterfahrt': normalerweise fährst du vom selben Ort weiter, an dem du
-      // gestoppt hast — aber manchmal wirst du als Fahrgast zu einer anderen
-      // Betriebsstelle gebracht, um dort einen anderen Zug zu übernehmen. Deshalb
-      // Picker öffnen, aber den letzten Ort oben als Ein-Tap-Schnellzugriff anbieten.
-      if (action === 'weiterfahrt') {
-        const last = fbLog[fbLog.length - 1];
-        fbPickerDefaultOrt = { code: last.ort.code, name: last.ort.name };
-        fbPickerPurpose = 'start';
-        fbOpenPicker();
-        return;
-      }
-      // 'abfahrt' -> neuer 'start'-Eintrag (neue Schicht beginnt, Ort unbekannt -> Auswahl)
-      // 'stopp' -> 'stopp'-Eintrag (Fahrt endet, Stand beginnt, Schicht läuft weiter)
-      fbPickerDefaultOrt = null;
-      fbPickerPressTime = new Date().toISOString(); // Zeitpunkt des Tastendrucks (für die Durchfahrt)
-      if (action === 'abfahrt') fbPickerPurpose = 'start';
-      else if (action === 'stopp') fbPickerPurpose = 'stopp';
-      else if (action === 'durch') fbPickerPurpose = 'durch';
-      fbOpenPicker();
-    }
-
-    function fbOpenPicker() {
-      document.getElementById('fb-main').style.display = 'none';
-      document.getElementById('fb-picker').style.display = 'block';
-      const titles = { start: 'Ort wählen', stopp: 'Pause-Ort wählen', durch: 'Durchfahrt-Ort wählen', ende: 'End-Ort der Schicht wählen' };
-      document.getElementById('fb-picker-title').textContent = titles[fbPickerPurpose] || 'Betriebsstelle wählen';
-      document.getElementById('fb-picker-search').value = '';
-      document.getElementById('fb-picker-list').innerHTML = '';
-
-      const defaultEl = document.getElementById('fb-picker-default');
-      if (fbPickerDefaultOrt) {
-        defaultEl.innerHTML = `
-          <div class="fb-picker-default-wrap">
-            <div class="bst-item" style="cursor: pointer; border-color: var(--accent);" onclick="fbSelectDefaultOrt()">
-              <div class="bst-item-top">
-                <span class="bst-code">${bstEscapeHtml(fbPickerDefaultOrt.code)}</span>
-                <span class="fb-default-tag">wie zuletzt</span>
-              </div>
-              <div class="bst-name">${bstEscapeHtml(fbPickerDefaultOrt.name)}</div>
-            </div>
-          </div>
-        `;
-      } else {
-        defaultEl.innerHTML = '';
-      }
-
-      const statusEl = document.getElementById('fb-picker-status');
-
-      if (!bstData) {
-        statusEl.textContent = 'Betriebsstellen-Datenbank lädt noch, bitte kurz warten …';
-        bstEnsureLoaded();
-      }
-
-      if (!navigator.geolocation) {
-        statusEl.textContent = 'Standortabfrage wird von diesem Browser nicht unterstützt — bitte unten suchen.';
-        return;
-      }
-
-      statusEl.textContent = 'Ermittle Standort …';
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (!bstData) {
-            statusEl.textContent = 'Datenbank noch nicht geladen — bitte unten suchen oder kurz erneut versuchen.';
-            return;
-          }
-          const userLat = pos.coords.latitude;
-          const userLon = pos.coords.longitude;
-          fbPickerCandidates = bstData
-            .filter(row => row[6] != null && row[7] != null)
-            .map(row => ({ row, dist: bstHaversine(userLat, userLon, row[6], row[7]) }))
-            .sort((a, b) => a.dist - b.dist)
-            .slice(0, 8);
-          statusEl.textContent = 'Nächstgelegene Betriebsstellen:';
-          fbRenderPickerList(fbPickerCandidates.map(c => c.row), fbPickerCandidates.map(c => c.dist));
-        },
-        (err) => {
-          statusEl.textContent = 'Standort nicht verfügbar — bitte unten suchen.';
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-      );
-    }
-
-    function fbClosePicker() {
-      document.getElementById('fb-main').style.display = 'block';
-      document.getElementById('fb-picker').style.display = 'none';
-      fbPickerPurpose = null;
-      fbPickerDefaultOrt = null;
-    }
-
-    function fbSelectDefaultOrt() {
-      if (!fbPickerDefaultOrt) return;
-      fbMaybeClearCollapsedOnNewShift();
-      fbLog.push({ type: fbPickerPurpose, time: fbPickerEntryTime(), ort: { ...fbPickerDefaultOrt } });
-      fbSave();
-      fbClosePicker();
-      fbRender();
-    }
-
-    function fbPickerSearch() {
-      const raw = document.getElementById('fb-picker-search').value.trim();
-      const q = raw.toLowerCase();
-      if (!q) {
-        fbRenderPickerList(fbPickerCandidates.map(c => c.row), fbPickerCandidates.map(c => c.dist), null);
-        return;
-      }
-      if (!bstData) {
-        fbRenderPickerList([], [], raw);
-        return;
-      }
-      const matches = bstData.filter(row => {
-        const [code, name, kurz] = row;
-        return code.toLowerCase().includes(q) || name.toLowerCase().includes(q) || kurz.toLowerCase().includes(q);
-      }).slice(0, 30);
-      fbRenderPickerList(matches, [], raw);
-    }
-
-    let fbPickerRenderedRows = [];
-
-    function fbRenderPickerList(rows, dists, freitextQuery) {
-      fbPickerRenderedRows = rows;
-      const listEl = document.getElementById('fb-picker-list');
-
-      // Freitext-Option: für Halte ohne eigene Betriebsstelle (freie Strecke,
-      // Selbstblocksignal usw.) — übernimmt den eingegebenen Text direkt als Ort.
-      const freitextHtml = freitextQuery ? `
-        <div class="bst-item" style="cursor: pointer; border-style: dashed;" onclick="fbSelectFreitext()">
-          <div class="bst-item-top">
-            <span class="bst-code">✏️ Freie Ortsangabe</span>
-          </div>
-          <div class="bst-name">„${bstEscapeHtml(freitextQuery)}" übernehmen</div>
-        </div>
-      ` : '';
-
-      if (rows.length === 0) {
-        listEl.innerHTML = freitextHtml || '<div class="bst-empty">Keine Treffer.</div>';
-        return;
-      }
-      listEl.innerHTML = freitextHtml + rows.map((row, i) => {
-        const [code, name, kurz, kat, status, land] = row;
-        const distTxt = dists[i] != null ? ` · ${bstFormatDistance(dists[i])}` : '';
-        return `
-          <div class="bst-item" style="cursor: pointer;" onclick="fbSelectOrtByIndex(${i})">
-            <div class="bst-item-top">
-              <span class="bst-code">${bstEscapeHtml(code)}</span>
-              <span class="bst-item-right">
-                <span class="bst-land">${bstFlag(land)}</span>
-                <span class="bst-kat">${bstEscapeHtml(kat || '')}</span>
-              </span>
-            </div>
-            <div class="bst-name">${bstEscapeHtml(name)}${distTxt}</div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function fbSelectFreitext() {
-      const text = document.getElementById('fb-picker-search').value.trim();
-      if (!text) return;
-      fbMaybeClearCollapsedOnNewShift();
-      fbLog.push({ type: fbPickerPurpose, time: fbPickerEntryTime(), ort: { code: text, name: text } });
-      fbSave();
-      fbClosePicker();
-      fbRender();
-    }
-
-    function fbSelectOrtByIndex(i) {
-      const row = fbPickerRenderedRows[i];
-      if (!row) return;
-      const [code, name] = row;
-      fbMaybeClearCollapsedOnNewShift();
-      fbLog.push({ type: fbPickerPurpose, time: fbPickerEntryTime(), ort: { code, name } });
-      fbSave();
-      fbClosePicker();
-      fbRender();
-    }
-
-    function fbResetLog() {
-      if (!confirm('Wirklich ALLE Fahrten (aktuelle und frühere) komplett löschen? Die Strecken-Statistik (Ø/Min/Max) bleibt davon unberührt erhalten.')) return;
-      fbLog = [];
-      fbSave();
-      fbRender();
-    }
-
-    // Exportiert genau EINE Schicht (per Index in fbBuildShifts()) als Textdatei.
-    // shiftIndex === null -> aktuelle/letzte Schicht.
-    // Baut den reinen Text-Block für EINE Schicht (ohne Datei-Header) — von
-    // fbExportShift() (Einzel-Export) UND fbExportAllShifts() (Sammel-Export)
-    // gemeinsam genutzt, damit beide Exporte immer identisch formatiert sind.
-    function fbShiftReportText(shift) {
-      const vonTxt = fbFormatDateTime(shift.start.time);
-      const bisTxt = shift.end ? fbFormatDateTime(shift.end.time) : 'läuft noch';
-      const lastEntry = shift.entries[shift.entries.length - 1];
-      const routeTxt = `${shift.start.ort.name} → ${lastEntry.ort.name}`;
-
-      let text = `Schichtbericht — ${vonTxt} bis ${bisTxt}\n`;
-      text += `Strecke: ${routeTxt}\n`;
-      text += '='.repeat(40) + '\n\n';
-      shift.segments.forEach(s => {
-        text += `${s.art.padEnd(6)} ${fbFormatTime(s.zeitVon)} ${s.von} -> ${fbFormatTime(s.zeitBis)} ${s.bis}${s.bisDurch ? ' (Durchfahrt)' : ''}  (${fbFormatDuration(s.dauerMs)})\n`;
-      });
-      text += '\n' + '-'.repeat(40) + '\n';
-      text += `Fahrzeit:  ${fbFormatDuration(shift.fahrzeitMs)}\n`;
-      text += `Standzeit: ${fbFormatDuration(shift.stehzeitMs)}\n`;
-      if (shift.open) text += '\n(Schicht noch nicht beendet — Stand bei Export)\n';
-      return text;
-    }
-
-    function fbExportShift(shiftIndex) {
-      const shifts = fbBuildShifts();
-      if (shifts.length === 0) {
-        alert('Noch keine Schicht vorhanden.');
-        return;
-      }
-      const idx = shiftIndex === null ? shifts.length - 1 : shiftIndex;
-      const shift = shifts[idx];
-      if (!shift || shift.segments.length === 0) {
-        alert('Diese Schicht hat noch keine abgeschlossenen Abschnitte.');
-        return;
-      }
-
-      const text = `Tf-Assistent, ${window.location.href}\n\n` + fbShiftReportText(shift);
-
-      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const fileDate = new Date(shift.start.time).toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `Schicht_${fileDate}_${fbFormatTime(shift.start.time).replace(':', '')}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    // Sammel-Export: ALLE gespeicherten Schichten (mit abgeschlossenen
-    // Abschnitten) in einer einzigen Textdatei hintereinander, getrennt durch
-    // eine deutliche Trennzeile — z. B. für einen Monatsüberblick oder um
-    // alles auf einmal zu sichern/weiterzugeben.
-    function fbExportAllShifts() {
-      const shifts = fbBuildShifts().filter(s => s.segments.length > 0);
-      if (shifts.length === 0) {
-        alert('Noch keine Schicht mit abgeschlossenen Abschnitten vorhanden.');
-        return;
-      }
-
-      let text = `Tf-Assistent — Sammelexport aller Fahrten (${shifts.length} Schicht${shifts.length === 1 ? '' : 'en'})\n`;
-      text += `${window.location.href}\n`;
-      text += `Exportiert: ${fbFormatDateTime(new Date().toISOString())}\n`;
-      text += '#'.repeat(40) + '\n\n';
-      text += shifts.map(fbShiftReportText).join('\n' + '#'.repeat(40) + '\n\n');
-
-      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const datum = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `Fahrtenbuch_Sammelexport_${datum}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    function bstFetchJson(url) {
-      return fetch(url).then(res => {
-        if (!res.ok) throw new Error(url + ': HTTP ' + res.status);
-        return res.json().catch(e => { throw new Error(url + ': ungültiges JSON (' + e.message + ')'); });
-      });
-    }
-
-    function bstEnsureLoaded() {
-      if (bstData || bstLoading) return;
-      bstLoading = true;
-      const statusEl = document.getElementById('bst-status');
-      statusEl.textContent = 'Lade Betriebsstellen-Datenbanken (DE + AT) …';
-
-      Promise.all([
-        bstFetchJson('data/betriebsstellen.json'),
-        bstFetchJson('data/betriebsstellen-at.json'),
-        // Eigene Ergänzungen (fehlende Stellen); optional — fehlt die Datei, geht es ohne.
-        bstFetchJson('data/betriebsstellen-eigene.json').catch(() => [])
-      ])
-        .then(([deData, atData, eigeneData]) => {
-          bstData = deData.concat(atData);
-          // Eigene Einträge nur ergänzen, wenn Code + Land nicht schon in den offiziellen Listen stehen.
-          const bekannt = new Set(bstData.map(r => r[5] + '|' + r[0].toLowerCase()));
-          (Array.isArray(eigeneData) ? eigeneData : []).forEach(r => {
-            if (!bekannt.has(r[5] + '|' + r[0].toLowerCase())) bstData.push(r);
-          });
-          bstLoading = false;
-          bstSearch();
-        })
-        .catch(err => {
-          bstLoading = false;
-          statusEl.textContent = 'Fehler beim Laden: ' + (err && err.message ? err.message : String(err));
-          console.log('Betriebsstellen-Ladefehler:', err);
-        });
-    }
-
-    function bstSearch() {
-      const statusEl = document.getElementById('bst-status');
-      const resultsEl = document.getElementById('bst-results');
-
-      if (!bstData) return;
-
-      clearTimeout(bstSearchTimer);
-      bstSearchTimer = setTimeout(() => {
-        const q = document.getElementById('bst-search').value.trim().toLowerCase();
-
-        const matches = bstData.filter(row => {
-          const [code, name, kurz, kat, status, land] = row;
-          if (bstLandFilter !== 'ALL' && land !== bstLandFilter) return false;
-          if (!q) return true;
-          return code.toLowerCase().includes(q)
-            || name.toLowerCase().includes(q)
-            || kurz.toLowerCase().includes(q);
-        });
-
-        const LIMIT = 100;
-        const shown = q ? matches.slice(0, LIMIT) : [];
-
-        if (!q) {
-          statusEl.textContent = `${bstData.length} Betriebsstellen geladen — Suchbegriff eingeben oder Standort nutzen.`;
-        } else if (matches.length === 0) {
-          statusEl.textContent = 'Keine Treffer.';
-        } else if (matches.length > LIMIT) {
-          statusEl.textContent = `${matches.length} Treffer (erste ${LIMIT} angezeigt) — Suche weiter eingrenzen.`;
-        } else {
-          statusEl.textContent = `${matches.length} Treffer.`;
-        }
-
-        resultsEl.innerHTML = shown.map(row => {
-          const [code, name, kurz, kat, status, land] = row;
-          const statusBadge = (status && status !== 'Betrieb')
-            ? `<span class="bst-status-badge">${bstEscapeHtml(status)}</span>`
-            : '';
-          return `
-            <div class="bst-item">
-              <div class="bst-item-top">
-                <span class="bst-code">${bstEscapeHtml(code)}</span>
-                <span class="bst-item-right">
-                  <span class="bst-land">${bstFlag(land)}</span>
-                  <span class="bst-kat">${bstEscapeHtml(kat || '')}</span>
-                </span>
-              </div>
-              <div class="bst-name">${bstEscapeHtml(name)}</div>
-              ${statusBadge}
-            </div>
-          `;
-        }).join('');
-
-        if (q && matches.length === 0) {
-          resultsEl.innerHTML = `<div class="bst-empty">Keine Treffer für "${bstEscapeHtml(q)}".</div>`;
-        }
-      }, 150);
-    }
-
-    // Service Worker Logik für Offline-Funktionalität & Auto-Updates
-    // Wird als eigene Datei (sw.js) registriert, nicht als Blob-URL —
-    // eine Blob-URL existiert nur innerhalb der aktuellen Seiten-Session
-    // und ist beim erneuten Öffnen der installierten App nicht mehr
-    // erreichbar, was zu Ladefehlern führen kann.
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').then(() => {
-        console.log('Offline-Service Worker ist aktiv (Network-first).');
-      }).catch(err => console.log('SW Fehler:', err));
-    }
-  </script>
+    if (editId) {
+      spools = spools.map(function (s) { return s.id === editId ? Object.assign({}, s, data, { undo: null }) : s; });
+    } else {
+      data.id = 's' + Date.now() + Math.floor(Math.random() * 1000); data.undo = null; spools.push(data);
+    }
+    save(); $('form-ov').classList.remove('show'); render(); toast('Gespeichert');
+  }
+
+  /* ---------- Aktionen ---------- */
+  function find(id) { return spools.filter(function (s) { return s.id === id; })[0]; }
+  function deduct(id) {
+    var s = find(id), inp = $('d-' + id), g = parseFloat(String(inp.value).replace(',', '.'));
+    if (!s || !(g > 0)) { toast('Bitte Gramm eingeben'); return; }
+    s.undo = s.rest; s.rest = Math.max(0, Math.round((s.rest - g) * 10) / 10);
+    save(); render(); toast(fmt(g) + ' g abgezogen · Rest ' + fmt(s.rest) + ' g');
+  }
+
+  $('list').addEventListener('click', function (e) {
+    var t = e.target.closest('[data-toggle],[data-deduct],[data-undo],[data-edit],[data-del]');
+    if (!t) return;
+    if (t.dataset.toggle) { openId = openId === t.dataset.toggle ? null : t.dataset.toggle; render(); return; }
+    if (t.dataset.deduct) return deduct(t.dataset.deduct);
+    if (t.dataset.undo) { var s = find(t.dataset.undo); if (s && s.undo != null) { s.rest = s.undo; s.undo = null; save(); render(); toast('Rückgängig gemacht'); } return; }
+    if (t.dataset.edit) return openForm(t.dataset.edit);
+    if (t.dataset.del) { var d = find(t.dataset.del); if (d && confirm('„' + d.farbe + '“ wirklich löschen?')) { spools = spools.filter(function (x) { return x.id !== d.id; }); openId = null; save(); render(); } }
+  });
+  $('mat-chips').addEventListener('click', function (e) { var b = e.target.closest('[data-mat]'); if (!b) return; filter.mat = filter.mat === b.dataset.mat ? '' : b.dataset.mat; filter.vari = ''; render(); });
+  $('var-chips').addEventListener('click', function (e) { var b = e.target.closest('[data-vari]'); if (!b) return; filter.vari = filter.vari === b.dataset.vari ? '' : b.dataset.vari; render(); });
+  $('fam-dots').addEventListener('click', function (e) { var b = e.target.closest('[data-fam]'); if (!b) return; filter.fam = filter.fam === b.dataset.fam ? '' : b.dataset.fam; render(); });
+  $('q').addEventListener('input', function () { filter.q = this.value.trim(); render(); });
+  $('hide-empty').addEventListener('change', function () { filter.hideEmpty = this.checked; render(); });
+  $('reset').addEventListener('click', function () { filter = { q: '', mat: '', vari: '', fam: '', hideEmpty: false }; $('q').value = ''; $('hide-empty').checked = false; render(); });
+
+  $('fab').addEventListener('click', function () { openForm(); });
+  $('f-cancel').addEventListener('click', function () { $('form-ov').classList.remove('show'); });
+  $('f-save').addEventListener('click', saveForm);
+  // Raute ist fest davor: eingefügter Text darf mit oder ohne "#" kommen,
+  // enthaltener 6-stelliger Code wird herausgezogen, alles andere verworfen.
+  $('f-hex').addEventListener('input', function () {
+    var v = this.value, m = v.match(/#?([0-9a-fA-F]{6})(?![0-9a-fA-F])/);
+    this.value = m ? m[1] : v.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
+    updatePreview();
+  });
+  $('f-picker').addEventListener('input', function () { $('f-hex').value = this.value.slice(1); updatePreview(); });
+  // Rollengewicht je Hersteller vorbelegen (nur solange nicht von Hand geändert)
+  var START_BY_HERSTELLER = { 'jayo': 1100 };
+  $('f-start').addEventListener('input', function () { startManual = true; });
+  $('f-hersteller').addEventListener('input', function () {
+    if (startManual) return;
+    $('f-start').value = START_BY_HERSTELLER[this.value.trim().toLowerCase()] || 1000;
+  });
+  $('f-familie').addEventListener('change', function () { famManual = true; });
+  $('f-search').addEventListener('click', function () {
+    var q = ($('f-hersteller').value + ' ' + $('f-material').value + ' ' + $('f-variante').value + ' ' + $('f-farbe').value).replace(/\s+/g, ' ').trim() + ' filament hex color code';
+    window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank');
+  });
+
+  /* ---------- Export / Import (alles ersetzen) ---------- */
+  $('settings-btn').addEventListener('click', function () { $('set-ov').classList.add('show'); });
+  $('set-close').addEventListener('click', function () { $('set-ov').classList.remove('show'); });
+  $('exp').addEventListener('click', function () {
+    // Nur die eigenen Filament-Daten sichern (andere Apps unter derselben Adresse bleiben außen vor)
+    var data = {}; data[KEY] = localStorage.getItem(KEY) || '[]';
+    var blob = new Blob([JSON.stringify({ app: 'filament-bestand', exportedAt: new Date().toISOString(), data: data }, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'filament-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+  $('imp').addEventListener('click', function () { $('imp-file').click(); });
+  $('imp-file').addEventListener('change', function (ev) {
+    var f = ev.target.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      var p; try { p = JSON.parse(r.result); } catch (e) { alert('Datei konnte nicht gelesen werden.'); ev.target.value = ''; return; }
+      if (!p || typeof p.data !== 'object' || p.data === null) { alert('Das sieht nicht wie ein Backup aus.'); ev.target.value = ''; return; }
+      var neu = p.data[KEY], okList = false;
+      try { okList = Array.isArray(JSON.parse(neu)); } catch (e) {}
+      if (!okList) { alert('In dieser Datei sind keine Filament-Daten.'); ev.target.value = ''; return; }
+      if (!confirm('Wirklich ALLE aktuellen Rollen durch das Backup vom ' + (p.exportedAt ? new Date(p.exportedAt).toLocaleString('de-DE') : 'unbekannt') + ' ersetzen? Das kann nicht rückgängig gemacht werden.')) { ev.target.value = ''; return; }
+      localStorage.setItem(KEY, neu);   // nur die Filament-Rollen ersetzen, nichts anderes anfassen
+      alert('Import abgeschlossen. Die App lädt neu.'); location.reload();
+    };
+    r.readAsText(f);
+  });
+
+  load(); render();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+})();
+</script>
 </body>
 </html>
