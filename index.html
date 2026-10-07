@@ -59,6 +59,7 @@
   .bar { height: 6px; background: var(--bg); border-radius: 999px; margin-top: 4px; overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--ok); border-radius: 999px; }
   .bar i.mid { background: #fbbf24; } .bar i.low { background: var(--danger); }
+  .sub2 { font-size: .8rem; color: var(--muted); margin-top: 2px; }
   .badge { background: var(--card2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; font-size: .75rem; margin-left: 6px; color: var(--text); }
 
   .actions { display: none; border-top: 1px solid var(--border); padding: 12px; background: var(--card2); }
@@ -159,7 +160,8 @@
       <div class="field"><label>Ausgangsgewicht (g)</label><input type="number" id="f-start" inputmode="numeric" value="1000"></div>
       <div class="field"><label>Restmenge (g)</label><input type="number" id="f-rest" inputmode="numeric"></div>
     </div>
-    <div class="field"><label>Anzahl Rollen</label><input type="number" id="f-anzahl" inputmode="numeric" value="1" min="1"></div>
+    <div class="field"><label>Weitere ungeöffnete Rollen (Vorrat)</label><input type="number" id="f-vorrat" inputmode="numeric" value="0" min="0">
+      <div class="hint">Beispiel: 285 g Rest und eine neue Rolle dazu → Restmenge 285, Vorrat 1.</div></div>
     <div class="sheet-actions">
       <button class="btn sec" id="f-cancel" type="button">Abbrechen</button>
       <button class="btn" id="f-save" type="button">Speichern</button>
@@ -196,8 +198,19 @@
   var openId = null, editId = null;
 
   function $(id) { return document.getElementById(id); }
-  function load() { try { spools = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { spools = []; } }
+  function load() {
+    try { spools = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { spools = []; }
+    // Umstellung: früher "anzahl" (Rollen insgesamt) -> jetzt "vorrat" (zusätzliche ungeöffnete Rollen)
+    var changed = false;
+    spools.forEach(function (s) {
+      if (s.vorrat === undefined) { s.vorrat = Math.max(0, (parseInt(s.anzahl, 10) || 1) - 1); changed = true; }
+      if ('anzahl' in s) { delete s.anzahl; changed = true; }
+    });
+    if (changed) save();
+  }
   function save() { localStorage.setItem(KEY, JSON.stringify(spools)); }
+  // Gesamtmenge einer Karte: angebrochene Rolle + ungeöffnete Rollen im Vorrat
+  function gesamt(s) { return s.rest + (s.vorrat || 0) * s.start; }
   function fmt(n) { return (Math.round(n * 10) / 10).toString().replace('.', ','); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function toast(t) { var el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove('show'); }, 2200); }
@@ -239,7 +252,7 @@
     if (ignore !== 'mat' && filter.mat && s.material !== filter.mat) return false;
     if (ignore !== 'vari' && filter.vari && (s.variante || '') !== filter.vari) return false;
     if (ignore !== 'fam' && filter.fam && s.familie !== filter.fam) return false;
-    if (filter.hideEmpty && s.rest <= 0) return false;
+    if (filter.hideEmpty && gesamt(s) <= 0) return false;
     if (filter.q) {
       var hay = (s.hersteller + ' ' + s.farbe + ' ' + s.material + ' ' + (s.variante || '') + ' ' + (s.hex || '')).toLowerCase();
       var words = filter.q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -289,7 +302,6 @@
     var list = spools.filter(function (s) { return matches(s); }).sort(function (a, b) {
       return (a.material + (a.variante || '') + a.hersteller + a.farbe).localeCompare(b.material + (b.variante || '') + b.hersteller + b.farbe, 'de');
     });
-    var total = list.reduce(function (n, s) { return n + (s.rest > 0 ? 1 : 0) * (s.anzahl || 1); }, 0);
     $('count').textContent = list.length + ' von ' + spools.length + ' Einträgen';
     if (!list.length) {
       $('list').innerHTML = '<div class="none">' + (spools.length ? 'Keine Rolle passt zu den Filtern.' : 'Mit „+“ Rolle hinzufügen') + '</div>';
@@ -299,18 +311,21 @@
       var p = s.start > 0 ? Math.max(0, Math.min(1, s.rest / s.start)) : 0;
       var mat = s.material + (s.variante ? ' ' + s.variante : '');
       var isOpen = openId === s.id;
-      return '<div class="spool' + (s.rest <= 0 ? ' empty' : '') + (isOpen ? ' open' : '') + '" data-id="' + s.id + '">' +
+      var vorrat = s.vorrat || 0, rollen = vorrat + (s.rest > 0 ? 1 : 0);
+      return '<div class="spool' + (gesamt(s) <= 0 ? ' empty' : '') + (isOpen ? ' open' : '') + '" data-id="' + s.id + '">' +
         '<div class="spool-main" data-toggle="' + s.id + '">' +
           '<div class="swatch" style="background:' + (s.hex || FAM_FARBE[s.familie]) + '"></div>' +
           '<div class="info">' +
-            '<div class="name">' + esc(s.farbe || '(ohne Name)') + (s.anzahl > 1 ? '<span class="badge">×' + s.anzahl + '</span>' : '') + '</div>' +
+            '<div class="name">' + esc(s.farbe || '(ohne Name)') + (vorrat > 0 ? '<span class="badge">' + rollen + ' Rollen</span>' : '') + '</div>' +
             '<div class="sub">' + esc(s.hersteller) + ' · ' + esc(mat) + (s.hex ? ' · ' + s.hex : '') + '</div>' +
-            '<div class="rest"><div class="rest-line"><b>' + fmt(s.rest) + ' g</b><span style="color:var(--muted)">von ' + fmt(s.start) + ' g</span></div>' +
+            '<div class="rest"><div class="rest-line"><b>' + fmt(gesamt(s)) + ' g</b><span style="color:var(--muted)">' + (vorrat > 0 ? 'gesamt' : 'von ' + fmt(s.start) + ' g') + '</span></div>' +
+            (vorrat > 0 ? '<div class="sub2">Angebrochen: ' + fmt(s.rest) + ' g · Vorrat: ' + vorrat + (vorrat === 1 ? ' Rolle' : ' Rollen') + '</div>' : '') +
             '<div class="bar"><i class="' + barClass(p) + '" style="width:' + Math.round(p * 100) + '%"></i></div></div>' +
           '</div></div>' +
         '<div class="actions">' +
           '<div class="deduct"><input type="text" inputmode="decimal" autocomplete="off" placeholder="Verbrauch laut Slicer (g)" id="d-' + s.id + '"><button class="btn" data-deduct="' + s.id + '">Abziehen</button></div>' +
           (s.undo != null ? '<div class="hint">Zuletzt abgezogen: ' + fmt(s.undo - s.rest) + ' g · <button class="link-btn" data-undo="' + s.id + '">Rückgängig</button></div>' : '') +
+          (vorrat > 0 ? '<div class="action-row"><button class="btn sec" data-open="' + s.id + '">Neue Rolle anbrechen</button></div>' : '') +
           '<div class="action-row"><button class="btn sec" data-edit="' + s.id + '">Bearbeiten</button><button class="btn danger" data-del="' + s.id + '">Löschen</button></div>' +
         '</div></div>';
     }).join('');
@@ -343,7 +358,7 @@
     $('f-hex').value = s && s.hex ? s.hex.slice(1) : '';
     $('f-start').value = s ? s.start : 1000;
     $('f-rest').value = s ? s.rest : '';
-    $('f-anzahl').value = s ? (s.anzahl || 1) : 1;
+    $('f-vorrat').value = s ? (s.vorrat || 0) : 0;
     famManual = !!s;
     startManual = !!s;
     updatePreview();
@@ -364,7 +379,7 @@
     var data = {
       hersteller: hersteller, material: $('f-material').value, variante: $('f-variante').value.trim(),
       farbe: farbe, hex: hex, familie: $('f-familie').value || guessFamily(hex),
-      start: start, rest: rest, anzahl: Math.max(1, parseInt($('f-anzahl').value, 10) || 1)
+      start: start, rest: rest, vorrat: Math.max(0, parseInt($('f-vorrat').value, 10) || 0)
     };
     if (editId) {
       spools = spools.map(function (s) { return s.id === editId ? Object.assign({}, s, data, { undo: null }) : s; });
@@ -380,12 +395,21 @@
     var s = find(id), inp = $('d-' + id), g = parseFloat(String(inp.value).replace(',', '.'));
     if (!s || !(g > 0)) { toast('Bitte Gramm eingeben'); return; }
     s.undo = s.rest; s.rest = Math.max(0, Math.round((s.rest - g) * 10) / 10);
-    save(); render(); toast(fmt(g) + ' g abgezogen · Rest ' + fmt(s.rest) + ' g');
+    save(); render();
+    toast(s.rest <= 0 && s.vorrat > 0 ? 'Rolle leer · unten „Neue Rolle anbrechen“' : fmt(g) + ' g abgezogen · Rest ' + fmt(s.rest) + ' g');
   }
 
   $('list').addEventListener('click', function (e) {
-    var t = e.target.closest('[data-toggle],[data-deduct],[data-undo],[data-edit],[data-del]');
+    var t = e.target.closest('[data-toggle],[data-deduct],[data-undo],[data-edit],[data-del],[data-open]');
     if (!t) return;
+    if (t.dataset.open) {
+      var o = find(t.dataset.open);
+      if (!o || !(o.vorrat > 0)) return;
+      if (o.rest > 0 && !confirm('Die angebrochene Rolle hat noch ' + fmt(o.rest) + ' g. Wirklich durch eine neue Rolle ersetzen? Der Rest wird dann nicht mehr mitgezählt.')) return;
+      o.vorrat -= 1; o.rest = o.start; o.undo = null;
+      save(); render(); toast('Neue Rolle angebrochen · ' + fmt(o.start) + ' g');
+      return;
+    }
     if (t.dataset.toggle) { openId = openId === t.dataset.toggle ? null : t.dataset.toggle; render(); return; }
     if (t.dataset.deduct) return deduct(t.dataset.deduct);
     if (t.dataset.undo) { var s = find(t.dataset.undo); if (s && s.undo != null) { s.rest = s.undo; s.undo = null; save(); render(); toast('Rückgängig gemacht'); } return; }
