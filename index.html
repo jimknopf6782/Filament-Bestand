@@ -325,6 +325,7 @@
         '<div class="actions">' +
           '<div class="deduct"><input type="text" inputmode="decimal" autocomplete="off" placeholder="Verbrauch laut Slicer (g)" id="d-' + s.id + '"><button class="btn" data-deduct="' + s.id + '">Abziehen</button></div>' +
           (s.undo != null ? '<div class="hint">Zuletzt abgezogen: ' + fmt(s.undo - s.rest) + ' g · <button class="link-btn" data-undo="' + s.id + '">Rückgängig</button></div>' : '') +
+          '<div class="action-row"><button class="btn sec" data-plus="' + s.id + '">+ 1 Rolle hinzufügen</button></div>' +
           (vorrat > 0 ? '<div class="action-row"><button class="btn sec" data-open="' + s.id + '">Neue Rolle anbrechen</button></div>' : '') +
           '<div class="action-row"><button class="btn sec" data-edit="' + s.id + '">Bearbeiten</button><button class="btn danger" data-del="' + s.id + '">Löschen</button></div>' +
         '</div></div>';
@@ -400,8 +401,17 @@
   }
 
   $('list').addEventListener('click', function (e) {
-    var t = e.target.closest('[data-toggle],[data-deduct],[data-undo],[data-edit],[data-del],[data-open]');
+    var t = e.target.closest('[data-toggle],[data-deduct],[data-undo],[data-edit],[data-del],[data-open],[data-plus]');
     if (!t) return;
+    if (t.dataset.plus) {
+      var a = find(t.dataset.plus);
+      if (!a) return;
+      if (!confirm('Eine neue, ungeöffnete Rolle (' + fmt(a.start) + ' g) zu „' + (a.farbe || 'dieser Farbe') + '“ hinzufügen?')) return;
+      // Ist die Karte komplett leer, wird die neue Rolle gleich zur aktuellen Rolle
+      if (a.rest <= 0 && !(a.vorrat > 0)) a.rest = a.start; else a.vorrat = (a.vorrat || 0) + 1;
+      save(); render(); toast('Rolle hinzugefügt · gesamt ' + fmt(gesamt(a)) + ' g');
+      return;
+    }
     if (t.dataset.open) {
       var o = find(t.dataset.open);
       if (!o || !(o.vorrat > 0)) return;
