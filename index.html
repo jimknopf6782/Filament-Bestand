@@ -419,7 +419,7 @@
   });
   $('f-familie').addEventListener('change', function () { famManual = true; });
   $('f-search').addEventListener('click', function () {
-    var q = ($('f-hersteller').value + ' ' + $('f-material').value + ' ' + $('f-variante').value + ' ' + $('f-farbe').value).replace(/\s+/g, ' ').trim() + ' filament Hex-Code und Grundfarbe';
+    var q = ($('f-hersteller').value + ' ' + $('f-material').value + ' ' + $('f-variante').value + ' ' + $('f-farbe').value).replace(/\s+/g, ' ').trim() + ' filament hex color code';
     window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank');
   });
 
