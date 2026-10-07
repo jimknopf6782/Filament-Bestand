@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Filament-Bestand</title>
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Filament">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --card2: #273449; --accent: #38bdf8;
+    --text: #f8fafc; --muted: #94a3b8; --border: #334155; --danger: #f87171; --ok: #4ade80;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); padding: 12px 12px 90px; display: flex; justify-content: center; }
+  .container { width: 100%; max-width: 560px; }
+
+  header { position: relative; text-align: center; margin: 4px 0 14px; }
+  header h1 { font-size: 1.4rem; color: var(--accent); }
+  #settings-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--accent); font-size: 1.4rem; padding: 6px 4px 6px 12px; cursor: pointer; }
+
+  input, select, button, textarea { font-size: 1rem; }
+  input[type=text], input[type=number], input[type=search], select {
+    width: 100%; padding: 11px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: #fff; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+  /* Filter */
+  .filters { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin-bottom: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { border: 1px solid var(--border); background: var(--bg); color: var(--muted); border-radius: 999px; padding: 7px 13px; font-weight: 600; font-size: .88rem; cursor: pointer; }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #0f172a; }
+  .chip small { opacity: .75; font-weight: 500; margin-left: 3px; }
+  .row-label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: 10px; }
+  .dots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .dot-btn { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; position: relative; padding: 0; }
+  .dot-btn.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+  .dot-btn span { position: absolute; right: -4px; top: -6px; background: var(--card2); color: var(--text); font-size: .62rem; border-radius: 999px; padding: 1px 5px; border: 1px solid var(--border); }
+  .filter-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: .85rem; color: var(--muted); }
+  .link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: .85rem; }
+  .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggle input { width: auto; }
+
+  /* Karten */
+  .spool { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow: hidden; }
+  .spool.empty { opacity: .55; }
+  .spool-main { display: flex; gap: 12px; padding: 12px; align-items: center; cursor: pointer; }
+  .swatch { width: 46px; height: 46px; border-radius: 50%; border: 2px solid rgba(255,255,255,.18); flex: none; box-shadow: inset 0 0 0 3px rgba(0,0,0,.18); }
+  .info { flex: 1; min-width: 0; }
+  .info .name { font-weight: 700; font-size: 1.02rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .info .sub { color: var(--muted); font-size: .82rem; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rest { margin-top: 7px; }
+  .rest-line { display: flex; justify-content: space-between; font-size: .85rem; }
+  .rest-line b { font-size: 1.02rem; }
+  .bar { height: 6px; background: var(--bg); border-radius: 999px; margin-top: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--ok); border-radius: 999px; }
+  .bar i.mid { background: #fbbf24; } .bar i.low { background: var(--danger); }
+  .badge { background: var(--card2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; font-size: .75rem; margin-left: 6px; color: var(--text); }
+
+  .actions { display: none; border-top: 1px solid var(--border); padding: 12px; background: var(--card2); }
+  .spool.open .actions { display: block; }
+  .deduct { display: flex; gap: 8px; }
+  .deduct input { flex: 1; }
+  .btn { border: none; border-radius: 8px; padding: 11px 16px; font-weight: 700; cursor: pointer; background: var(--accent); color: #0f172a; }
+  .btn.sec { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+  .btn.danger { background: var(--bg); color: var(--danger); border: 1px solid var(--border); }
+  .action-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .action-row .btn { flex: 1; padding: 9px 10px; font-size: .88rem; }
+  .hint { color: var(--muted); font-size: .8rem; margin-top: 6px; }
+
+  .none { text-align: center; color: var(--muted); padding: 30px 10px; }
+
+  #fab { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); width: 58px; height: 58px; border-radius: 50%; border: none; background: var(--accent); color: #0f172a; font-size: 2rem; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,.5); cursor: pointer; }
+
+  /* Formular-Overlay */
+  .overlay { position: fixed; inset: 0; background: rgba(2,6,23,.75); display: none; z-index: 20; align-items: flex-end; justify-content: center; }
+  .overlay.show { display: flex; }
+  .sheet { background: var(--card); width: 100%; max-width: 560px; max-height: 94vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 16px; border: 1px solid var(--border); }
+  .sheet h2 { font-size: 1.15rem; margin-bottom: 12px; color: var(--accent); }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 5px; }
+  .two { display: flex; gap: 10px; } .two > * { flex: 1; min-width: 0; }
+  .hexrow { display: flex; gap: 8px; align-items: stretch; }
+  .hexrow input[type=text] { flex: 1; font-family: monospace; }
+  .hexrow input[type=color] { width: 54px; height: auto; padding: 2px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; }
+  .hexrow .btn { padding: 0 12px; font-size: .85rem; }
+  .preview { height: 14px; border-radius: 999px; margin-top: 8px; border: 1px solid var(--border); }
+  .sheet-actions { display: flex; gap: 10px; margin-top: 8px; }
+  .sheet-actions .btn { flex: 1; }
+
+  #toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: var(--card2); border: 1px solid var(--border); padding: 10px 16px; border-radius: 10px; font-size: .9rem; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 40; max-width: 90%; text-align: center; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Filament-Bestand</h1>
+    <button id="settings-btn" aria-label="Daten sichern" title="Daten sichern">⚙</button>
+  </header>
+
+  <div class="filters">
+    <input type="search" id="q" placeholder="Suchen: Name, Hersteller …" autocomplete="off">
+    <div class="row-label" id="lbl-mat">Material</div>
+    <div class="chips" id="mat-chips"></div>
+    <div id="var-wrap" style="display:none">
+      <div class="row-label">Variante</div>
+      <div class="chips" id="var-chips"></div>
+    </div>
+    <div class="row-label">Farbe</div>
+    <div class="dots" id="fam-dots"></div>
+    <div class="filter-foot">
+      <span id="count"></span>
+      <span>
+        <label class="toggle"><input type="checkbox" id="hide-empty"> Leere ausblenden</label>
+      </span>
+      <button class="link-btn" id="reset">Filter löschen</button>
+    </div>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<button id="fab" aria-label="Neue Rolle">+</button>
+
+<!-- Formular -->
+<div class="overlay" id="form-ov">
+  <div class="sheet">
+    <h2 id="form-title">Neue Rolle</h2>
+    <div class="field"><label>Hersteller</label><input type="text" id="f-hersteller" list="dl-hersteller" autocomplete="off"><datalist id="dl-hersteller"></datalist></div>
+    <div class="two">
+      <div class="field"><label>Material</label>
+        <select id="f-material">
+          <option>PLA</option><option>PETG</option><option>TPU</option><option>ABS</option><option>ASA</option><option>PA</option><option>PC</option><option>Sonstiges</option>
+        </select>
+      </div>
+      <div class="field"><label>Variante (optional)</label><input type="text" id="f-variante" list="dl-variante" placeholder="z. B. Plus, Matt, 95A" autocomplete="off"><datalist id="dl-variante"></datalist></div>
+    </div>
+    <div class="field"><label>Farbname</label><input type="text" id="f-farbe" autocomplete="off" placeholder="z. B. Jade White"></div>
+    <div class="field">
+      <label>Farbcode (Hex)</label>
+      <div class="hexrow">
+        <input type="text" id="f-hex" placeholder="#RRGGBB" maxlength="7" autocomplete="off">
+        <input type="color" id="f-picker" value="#808080" aria-label="Farbkreis">
+        <button class="btn sec" id="f-search" type="button">Hex suchen</button>
+      </div>
+      <div class="preview" id="f-preview"></div>
+      <div class="hint">„Hex suchen“ öffnet eine Websuche. Gefundenen Code hier einfügen oder per Farbkreis (Feld rechts) einstellen.</div>
+    </div>
+    <div class="field"><label>Farbfamilie (für den Schnellfilter)</label><select id="f-familie"></select></div>
+    <div class="two">
+      <div class="field"><label>Ausgangsgewicht (g)</label><input type="number" id="f-start" inputmode="numeric" value="1000"></div>
+      <div class="field"><label>Restmenge (g)</label><input type="number" id="f-rest" inputmode="numeric"></div>
+    </div>
+    <div class="field"><label>Anzahl Rollen</label><input type="number" id="f-anzahl" inputmode="numeric" value="1" min="1"></div>
+    <div class="sheet-actions">
+      <button class="btn sec" id="f-cancel" type="button">Abbrechen</button>
+      <button class="btn" id="f-save" type="button">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Daten sichern -->
+<div class="overlay" id="set-ov">
+  <div class="sheet">
+    <h2>Daten sichern</h2>
+    <p class="hint" style="margin-bottom:14px">Exportiert alle gespeicherten Rollen als Datei, zum Sichern oder für ein neues Handy. Beim Import werden alle aktuellen Daten ersetzt.</p>
+    <div class="sheet-actions" style="flex-direction:column">
+      <button class="btn" id="exp">Daten exportieren</button>
+      <button class="btn sec" id="imp">Daten importieren</button>
+      <button class="btn sec" id="set-close">Schließen</button>
+    </div>
+    <input type="file" id="imp-file" accept=".json,application/json" style="display:none">
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'filamentSpools';
+  var FAMILIEN = ['Schwarz', 'Weiß', 'Grau', 'Rot', 'Orange', 'Gelb', 'Grün', 'Blau', 'Lila', 'Braun', 'Sonstige'];
+  var FAM_FARBE = { 'Schwarz': '#111111', 'Weiß': '#f3f4f6', 'Grau': '#8b9098', 'Rot': '#e11d48', 'Orange': '#f97316', 'Gelb': '#facc15', 'Grün': '#22c55e', 'Blau': '#3b82f6', 'Lila': '#a855f7', 'Braun': '#8b5a2b', 'Sonstige': 'conic-gradient(#f43f5e,#facc15,#22c55e,#38bdf8,#a855f7,#f43f5e)' };
+  var VARIANTEN = ['Basic', 'Plus', 'Matt', 'Silk', 'HF', 'CF', 'Marmor', 'Glitzer', 'Transparent', '85A', '95A'];
+
+  var spools = [];
+  var filter = { q: '', mat: '', vari: '', fam: '', hideEmpty: false };
+  var openId = null, editId = null;
+
+  function $(id) { return document.getElementById(id); }
+  function load() { try { spools = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { spools = []; } }
+  function save() { localStorage.setItem(KEY, JSON.stringify(spools)); }
+  function fmt(n) { return (Math.round(n * 10) / 10).toString().replace('.', ','); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function toast(t) { var el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove('show'); }, 2200); }
+
+  /* ---------- Farbe ---------- */
+  function normHex(h) {
+    h = String(h || '').trim().replace(/^#?/, '');
+    if (/^[0-9a-f]{3}$/i.test(h)) h = h.split('').map(function (c) { return c + c; }).join('');
+    return /^[0-9a-f]{6}$/i.test(h) ? '#' + h.toLowerCase() : '';
+  }
+  function hexToHsl(hex) {
+    var r = parseInt(hex.substr(1, 2), 16) / 255, g = parseInt(hex.substr(3, 2), 16) / 255, b = parseInt(hex.substr(5, 2), 16) / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, h = 0, s = 0, d = max - min;
+    if (d) {
+      s = l > .5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = ((g - b) / d) % 6; else if (max === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    return { h: h, s: s, l: l };
+  }
+  function guessFamily(hex) {
+    if (!hex) return 'Sonstige';
+    var c = hexToHsl(hex);
+    if (c.l < .13) return 'Schwarz';
+    if (c.s < .14) return c.l > .78 ? 'Weiß' : 'Grau';
+    if (c.l > .78 && c.s < .45) return 'Weiß';          // Knochen-/Cremeweiß
+    var h = c.h;
+    if (h >= 15 && h < 45 && c.l < .42) return 'Braun';
+    if (h >= 300 || h < 15) return 'Rot';                 // Rot, Magenta, Pink, Sakura
+    if (h < 42) return 'Orange';
+    if (h < 70) return 'Gelb';
+    if (h < 170) return 'Grün';
+    if (h < 255) return 'Blau';
+    return 'Lila';
+  }
+
+  /* ---------- Filter ---------- */
+  function matches(s, ignore) {
+    if (ignore !== 'mat' && filter.mat && s.material !== filter.mat) return false;
+    if (ignore !== 'vari' && filter.vari && (s.variante || '') !== filter.vari) return false;
+    if (ignore !== 'fam' && filter.fam && s.familie !== filter.fam) return false;
+    if (filter.hideEmpty && s.rest <= 0) return false;
+    if (filter.q) {
+      var hay = (s.hersteller + ' ' + s.farbe + ' ' + s.material + ' ' + (s.variante || '') + ' ' + (s.hex || '')).toLowerCase();
+      var words = filter.q.toLowerCase().split(/\s+/).filter(Boolean);
+      for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) < 0) return false;
+    }
+    return true;
+  }
+  function count(map, arr) { arr.forEach(function (k) { map[k] = (map[k] || 0) + 1; }); return map; }
+
+  function renderFilters() {
+    // Nur vorhandene Werte, Zähler passen sich den übrigen Filtern an
+    var mats = {}, vars = {}, fams = {};
+    spools.forEach(function (s) {
+      if (matches(s, 'mat')) mats[s.material] = (mats[s.material] || 0) + 1;
+      else if (!(s.material in mats)) mats[s.material] = mats[s.material] || 0;
+    });
+    var matKeys = Object.keys(mats).sort();
+    if (filter.mat && matKeys.indexOf(filter.mat) < 0) filter.mat = '';
+    $('mat-chips').innerHTML = matKeys.map(function (m) {
+      return '<button class="chip' + (filter.mat === m ? ' active' : '') + '" data-mat="' + esc(m) + '">' + esc(m) + '<small>' + mats[m] + '</small></button>';
+    }).join('');
+
+    // Variantenebene nur, wenn ein Material gewählt ist und es Varianten gibt
+    var vs = {};
+    spools.forEach(function (s) { if (s.material === filter.mat && s.variante && matches(s, 'vari')) vs[s.variante] = (vs[s.variante] || 0) + 1; });
+    var allVars = {};
+    spools.forEach(function (s) { if (s.material === filter.mat && s.variante) allVars[s.variante] = 1; });
+    var vKeys = Object.keys(allVars).sort();
+    $('var-wrap').style.display = filter.mat && vKeys.length ? '' : 'none';
+    if (filter.vari && vKeys.indexOf(filter.vari) < 0) filter.vari = '';
+    $('var-chips').innerHTML = vKeys.map(function (v) {
+      return '<button class="chip' + (filter.vari === v ? ' active' : '') + '" data-vari="' + esc(v) + '">' + esc(v) + '<small>' + (vs[v] || 0) + '</small></button>';
+    }).join('');
+
+    var famAll = {};
+    spools.forEach(function (s) { famAll[s.familie] = 1; if (matches(s, 'fam')) fams[s.familie] = (fams[s.familie] || 0) + 1; });
+    if (filter.fam && !famAll[filter.fam]) filter.fam = '';
+    $('fam-dots').innerHTML = FAMILIEN.filter(function (f) { return famAll[f]; }).map(function (f) {
+      return '<button class="dot-btn' + (filter.fam === f ? ' active' : '') + '" data-fam="' + f + '" title="' + f + '" style="background:' + FAM_FARBE[f] + '"><span>' + (fams[f] || 0) + '</span></button>';
+    }).join('') || '<span class="hint">–</span>';
+  }
+
+  /* ---------- Liste ---------- */
+  function barClass(p) { return p < .15 ? 'low' : p < .4 ? 'mid' : ''; }
+  function render() {
+    renderFilters();
+    var list = spools.filter(function (s) { return matches(s); }).sort(function (a, b) {
+      return (a.material + (a.variante || '') + a.hersteller + a.farbe).localeCompare(b.material + (b.variante || '') + b.hersteller + b.farbe, 'de');
+    });
+    var total = list.reduce(function (n, s) { return n + (s.rest > 0 ? 1 : 0) * (s.anzahl || 1); }, 0);
+    $('count').textContent = list.length + ' von ' + spools.length + ' Einträgen';
+    if (!list.length) {
+      $('list').innerHTML = '<div class="none">' + (spools.length ? 'Keine Rolle passt zu den Filtern.' : 'Mit „+“ Rolle hinzufügen') + '</div>';
+      return;
+    }
+    $('list').innerHTML = list.map(function (s) {
+      var p = s.start > 0 ? Math.max(0, Math.min(1, s.rest / s.start)) : 0;
+      var mat = s.material + (s.variante ? ' ' + s.variante : '');
+      var isOpen = openId === s.id;
+      return '<div class="spool' + (s.rest <= 0 ? ' empty' : '') + (isOpen ? ' open' : '') + '" data-id="' + s.id + '">' +
+        '<div class="spool-main" data-toggle="' + s.id + '">' +
+          '<div class="swatch" style="background:' + (s.hex || FAM_FARBE[s.familie]) + '"></div>' +
+          '<div class="info">' +
+            '<div class="name">' + esc(s.farbe || '(ohne Name)') + (s.anzahl > 1 ? '<span class="badge">×' + s.anzahl + '</span>' : '') + '</div>' +
+            '<div class="sub">' + esc(s.hersteller) + ' · ' + esc(mat) + (s.hex ? ' · ' + s.hex : '') + '</div>' +
+            '<div class="rest"><div class="rest-line"><b>' + fmt(s.rest) + ' g</b><span style="color:var(--muted)">von ' + fmt(s.start) + ' g</span></div>' +
+            '<div class="bar"><i class="' + barClass(p) + '" style="width:' + Math.round(p * 100) + '%"></i></div></div>' +
+          '</div></div>' +
+        '<div class="actions">' +
+          '<div class="deduct"><input type="text" inputmode="decimal" autocomplete="off" placeholder="Verbrauch laut Slicer (g)" id="d-' + s.id + '"><button class="btn" data-deduct="' + s.id + '">Abziehen</button></div>' +
+          (s.undo != null ? '<div class="hint">Zuletzt abgezogen: ' + fmt(s.undo - s.rest) + ' g · <button class="link-btn" data-undo="' + s.id + '">Rückgängig</button></div>' : '') +
+          '<div class="action-row"><button class="btn sec" data-edit="' + s.id + '">Bearbeiten</button><button class="btn danger" data-del="' + s.id + '">Löschen</button></div>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  /* ---------- Formular ---------- */
+  function fillSuggestions() {
+    var h = {}; spools.forEach(function (s) { if (s.hersteller) h[s.hersteller] = 1; });
+    $('dl-hersteller').innerHTML = Object.keys(h).sort().map(function (x) { return '<option value="' + esc(x) + '">'; }).join('');
+    var v = {}; VARIANTEN.forEach(function (x) { v[x] = 1; }); spools.forEach(function (s) { if (s.variante) v[s.variante] = 1; });
+    $('dl-variante').innerHTML = Object.keys(v).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('');
+  }
+  var famManual = false;
+  function updatePreview() {
+    var hex = normHex($('f-hex').value);
+    $('f-preview').style.background = hex || 'transparent';
+    if (hex) $('f-picker').value = hex;
+    if (!famManual) $('f-familie').value = guessFamily(hex);
+  }
+  function openForm(id) {
+    editId = id || null;
+    fillSuggestions();
+    $('f-familie').innerHTML = FAMILIEN.map(function (f) { return '<option>' + f + '</option>'; }).join('');
+    var s = spools.filter(function (x) { return x.id === id; })[0];
+    $('form-title').textContent = s ? 'Rolle bearbeiten' : 'Neue Rolle';
+    $('f-hersteller').value = s ? s.hersteller : '';
+    $('f-material').value = s ? s.material : 'PLA';
+    $('f-variante').value = s ? (s.variante || '') : '';
+    $('f-farbe').value = s ? s.farbe : '';
+    $('f-hex').value = s ? (s.hex || '') : '';
+    $('f-start').value = s ? s.start : 1000;
+    $('f-rest').value = s ? s.rest : '';
+    $('f-anzahl').value = s ? (s.anzahl || 1) : 1;
+    famManual = !!s;
+    updatePreview();
+    if (s) $('f-familie').value = s.familie;
+    $('form-ov').classList.add('show');
+  }
+  function saveForm() {
+    var hersteller = $('f-hersteller').value.trim();
+    var farbe = $('f-farbe').value.trim();
+    if (!hersteller && !farbe) { toast('Bitte Hersteller oder Farbname eintragen'); return; }
+    var rawHex = $('f-hex').value.trim();
+    var hex = normHex(rawHex);
+    if (rawHex && !hex) { toast('Hex-Code ungültig (z. B. #F2F0E6)'); return; }
+    var start = parseFloat($('f-start').value); if (!(start > 0)) start = 1000;
+    var restRaw = $('f-rest').value.trim();
+    var rest = restRaw === '' ? start : parseFloat(restRaw);
+    if (isNaN(rest) || rest < 0) rest = 0;
+    var data = {
+      hersteller: hersteller, material: $('f-material').value, variante: $('f-variante').value.trim(),
+      farbe: farbe, hex: hex, familie: $('f-familie').value || guessFamily(hex),
+      start: start, rest: rest, anzahl: Math.max(1, parseInt($('f-anzahl').value, 10) || 1)
+    };
+    if (editId) {
+      spools = spools.map(function (s) { return s.id === editId ? Object.assign({}, s, data, { undo: null }) : s; });
+    } else {
+      data.id = 's' + Date.now() + Math.floor(Math.random() * 1000); data.undo = null; spools.push(data);
+    }
+    save(); $('form-ov').classList.remove('show'); render(); toast('Gespeichert');
+  }
+
+  /* ---------- Aktionen ---------- */
+  function find(id) { return spools.filter(function (s) { return s.id === id; })[0]; }
+  function deduct(id) {
+    var s = find(id), inp = $('d-' + id), g = parseFloat(String(inp.value).replace(',', '.'));
+    if (!s || !(g > 0)) { toast('Bitte Gramm eingeben'); return; }
+    s.undo = s.rest; s.rest = Math.max(0, Math.round((s.rest - g) * 10) / 10);
+    save(); render(); toast(fmt(g) + ' g abgezogen · Rest ' + fmt(s.rest) + ' g');
+  }
+
+  $('list').addEventListener('click', function (e) {
+    var t = e.target.closest('[data-toggle],[data-deduct],[data-undo],[data-edit],[data-del]');
+    if (!t) return;
+    if (t.dataset.toggle) { openId = openId === t.dataset.toggle ? null : t.dataset.toggle; render(); return; }
+    if (t.dataset.deduct) return deduct(t.dataset.deduct);
+    if (t.dataset.undo) { var s = find(t.dataset.undo); if (s && s.undo != null) { s.rest = s.undo; s.undo = null; save(); render(); toast('Rückgängig gemacht'); } return; }
+    if (t.dataset.edit) return openForm(t.dataset.edit);
+    if (t.dataset.del) { var d = find(t.dataset.del); if (d && confirm('„' + d.farbe + '“ wirklich löschen?')) { spools = spools.filter(function (x) { return x.id !== d.id; }); openId = null; save(); render(); } }
+  });
+  $('mat-chips').addEventListener('click', function (e) { var b = e.target.closest('[data-mat]'); if (!b) return; filter.mat = filter.mat === b.dataset.mat ? '' : b.dataset.mat; filter.vari = ''; render(); });
+  $('var-chips').addEventListener('click', function (e) { var b = e.target.closest('[data-vari]'); if (!b) return; filter.vari = filter.vari === b.dataset.vari ? '' : b.dataset.vari; render(); });
+  $('fam-dots').addEventListener('click', function (e) { var b = e.target.closest('[data-fam]'); if (!b) return; filter.fam = filter.fam === b.dataset.fam ? '' : b.dataset.fam; render(); });
+  $('q').addEventListener('input', function () { filter.q = this.value.trim(); render(); });
+  $('hide-empty').addEventListener('change', function () { filter.hideEmpty = this.checked; render(); });
+  $('reset').addEventListener('click', function () { filter = { q: '', mat: '', vari: '', fam: '', hideEmpty: false }; $('q').value = ''; $('hide-empty').checked = false; render(); });
+
+  $('fab').addEventListener('click', function () { openForm(); });
+  $('f-cancel').addEventListener('click', function () { $('form-ov').classList.remove('show'); });
+  $('f-save').addEventListener('click', saveForm);
+  $('f-hex').addEventListener('input', updatePreview);
+  $('f-picker').addEventListener('input', function () { $('f-hex').value = this.value; updatePreview(); });
+  $('f-familie').addEventListener('change', function () { famManual = true; });
+  $('f-search').addEventListener('click', function () {
+    var q = ($('f-hersteller').value + ' ' + $('f-material').value + ' ' + $('f-variante').value + ' ' + $('f-farbe').value).replace(/\s+/g, ' ').trim() + ' filament hex color code';
+    window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank');
+  });
+
+  /* ---------- Export / Import (alles ersetzen) ---------- */
+  $('settings-btn').addEventListener('click', function () { $('set-ov').classList.add('show'); });
+  $('set-close').addEventListener('click', function () { $('set-ov').classList.remove('show'); });
+  $('exp').addEventListener('click', function () {
+    var data = {}; for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); data[k] = localStorage.getItem(k); }
+    var blob = new Blob([JSON.stringify({ app: 'filament-bestand', exportedAt: new Date().toISOString(), data: data }, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'filament-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+  $('imp').addEventListener('click', function () { $('imp-file').click(); });
+  $('imp-file').addEventListener('change', function (ev) {
+    var f = ev.target.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      var p; try { p = JSON.parse(r.result); } catch (e) { alert('Datei konnte nicht gelesen werden.'); ev.target.value = ''; return; }
+      if (!p || typeof p.data !== 'object') { alert('Das sieht nicht wie ein Backup aus.'); ev.target.value = ''; return; }
+      if (!confirm('Wirklich ALLE aktuellen Daten durch das Backup vom ' + (p.exportedAt ? new Date(p.exportedAt).toLocaleString('de-DE') : 'unbekannt') + ' ersetzen? Das kann nicht rückgängig gemacht werden.')) { ev.target.value = ''; return; }
+      localStorage.clear();
+      Object.keys(p.data).forEach(function (k) { localStorage.setItem(k, p.data[k]); });
+      alert('Import abgeschlossen. Die App lädt neu.'); location.reload();
+    };
+    r.readAsText(f);
+  });
+
+  load(); render();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+})();
+</script>
+</body>
+</html>
