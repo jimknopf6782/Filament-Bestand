@@ -92,6 +92,8 @@
   .hexin input[type=text] { flex: 1; min-width: 0; border: none; background: transparent; padding: 11px 8px 11px 4px; font-family: monospace; outline: none; }
   .hexrow input[type=color] { width: 54px; height: auto; padding: 2px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; }
   .hexrow .btn { padding: 0 12px; font-size: .85rem; }
+  #f-extra .hexrow { margin-top: 8px; }
+  #f-extra .x-del { padding: 0 16px; font-size: 1rem; }
   .preview { height: 14px; border-radius: 999px; margin-top: 8px; border: 1px solid var(--border); }
   .sheet-actions { display: flex; gap: 10px; margin-top: 8px; }
   .sheet-actions .btn { flex: 1; }
@@ -152,8 +154,10 @@
         <input type="color" id="f-picker" value="#808080" aria-label="Farbkreis">
         <button class="btn sec" id="f-search" type="button">Hex suchen</button>
       </div>
+      <div id="f-extra"></div>
+      <button class="btn sec" id="f-addcolor" type="button" style="margin-top:8px;width:100%">+ Weitere Farbe (bis zu 4)</button>
       <div class="preview" id="f-preview"></div>
-      <div class="hint">„Hex suchen“ öffnet eine Websuche. Gefundenen Code hier einfügen oder per Farbkreis (Feld rechts) einstellen.</div>
+      <div class="hint">„Hex suchen“ öffnet eine Websuche. Gefundenen Code hier einfügen oder per Farbkreis (Feld rechts) einstellen. Bei mehrfarbigen Rollen mit „+ Weitere Farbe“ bis zu 4 Farben eintragen.</div>
     </div>
     <div class="field"><label>Farbfamilie (für den Schnellfilter)</label><select id="f-familie"></select></div>
     <div class="two">
@@ -232,6 +236,18 @@
     }
     return { h: h, s: s, l: l };
   }
+  // Farben einer Rolle: neue Einträge haben "farben", ältere nur "hex"
+  function farbenOf(s) { return (s.farben && s.farben.length) ? s.farben : (s.hex ? [s.hex] : []); }
+  // Farbpunkt/-balken: mehrere Farben als gleich große Abschnitte, "Mehrfarbig" ohne Farben als Regenbogen
+  function swatchBg(s, linear) {
+    var c = farbenOf(s);
+    if (c.length > 1) {
+      var n = c.length;
+      return (linear ? 'linear-gradient(to right,' : 'conic-gradient(') + c.map(function (col, i) { return col + ' ' + (i * 100 / n) + '% ' + ((i + 1) * 100 / n) + '%'; }).join(',') + ')';
+    }
+    if (s.familie === 'Mehrfarbig') return linear ? 'linear-gradient(to right,#f43f5e,#facc15,#22c55e,#38bdf8,#a855f7)' : REGENBOGEN;
+    return c[0] || FAM_FARBE[s.familie] || FAM_FARBE['Sonstige'];
+  }
   function guessFamily(hex) {
     if (!hex) return 'Sonstige';
     var c = hexToHsl(hex);
@@ -255,7 +271,7 @@
     if (ignore !== 'fam' && filter.fam && s.familie !== filter.fam) return false;
     if (filter.hideEmpty && gesamt(s) <= 0) return false;
     if (filter.q) {
-      var hay = (s.hersteller + ' ' + s.farbe + ' ' + s.material + ' ' + (s.variante || '') + ' ' + (s.hex || '')).toLowerCase();
+      var hay = (s.hersteller + ' ' + s.farbe + ' ' + s.material + ' ' + (s.variante || '') + ' ' + farbenOf(s).join(' ')).toLowerCase();
       var words = filter.q.toLowerCase().split(/\s+/).filter(Boolean);
       for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) < 0) return false;
     }
@@ -315,10 +331,10 @@
       var vorrat = s.vorrat || 0, rollen = vorrat + (s.rest > 0 ? 1 : 0);
       return '<div class="spool' + (gesamt(s) <= 0 ? ' empty' : '') + (isOpen ? ' open' : '') + '" data-id="' + s.id + '">' +
         '<div class="spool-main" data-toggle="' + s.id + '">' +
-          '<div class="swatch" style="background:' + (s.familie === 'Mehrfarbig' ? REGENBOGEN : (s.hex || FAM_FARBE[s.familie] || FAM_FARBE['Sonstige'])) + '"></div>' +
+          '<div class="swatch" style="background:' + swatchBg(s) + '"></div>' +
           '<div class="info">' +
             '<div class="name">' + esc(s.farbe || '(ohne Name)') + (vorrat > 0 ? '<span class="badge">' + rollen + ' Rollen</span>' : '') + '</div>' +
-            '<div class="sub">' + esc(s.hersteller) + ' · ' + esc(mat) + (s.hex ? ' · ' + s.hex : '') + '</div>' +
+            '<div class="sub">' + esc(s.hersteller) + ' · ' + esc(mat) + (farbenOf(s).length > 1 ? ' · ' + farbenOf(s).length + ' Farben' : (s.hex ? ' · ' + s.hex : '')) + '</div>' +
             '<div class="rest"><div class="rest-line"><b>' + fmt(gesamt(s)) + ' g</b><span style="color:var(--muted)">' + (vorrat > 0 ? 'gesamt' : 'von ' + fmt(s.start) + ' g') + '</span></div>' +
             (vorrat > 0 ? '<div class="sub2">Angebrochen: ' + fmt(s.rest) + ' g · Vorrat: ' + vorrat + (vorrat === 1 ? ' Rolle' : ' Rollen') + '</div>' : '') +
             '<div class="bar"><i class="' + barClass(p) + '" style="width:' + Math.round(p * 100) + '%"></i></div></div>' +
@@ -341,16 +357,35 @@
     $('dl-variante').innerHTML = Object.keys(v).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('');
   }
   var famManual = false, startManual = false;
+  var MAX_FARBEN = 4;
+  function cleanHex(el) {
+    var v = el.value, m = v.match(/#?([0-9a-fA-F]{6})(?![0-9a-fA-F])/);
+    el.value = m ? m[1] : v.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
+  }
+  function extraRows() { return Array.prototype.slice.call($('f-extra').querySelectorAll('.hexrow')); }
+  function rawColors() { return [$('f-hex').value].concat(extraRows().map(function (r) { return r.querySelector('.x-hex').value; })).map(function (v) { return v.trim(); }); }
+  function readColors() { return rawColors().map(normHex).filter(Boolean); }   // gültige Codes in Reihenfolge, max. 4
+  function toggleAdd() { $('f-addcolor').style.display = extraRows().length >= MAX_FARBEN - 1 ? 'none' : ''; }
+  function addExtraRow(val) {
+    if (extraRows().length >= MAX_FARBEN - 1) return null;
+    var d = document.createElement('div'); d.className = 'hexrow';
+    d.innerHTML = '<div class="hexin"><span>#</span><input type="text" class="x-hex" placeholder="RRGGBB" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+      '<input type="color" class="x-pick" value="#808080" aria-label="Farbkreis"><button class="btn sec x-del" type="button" aria-label="Farbe entfernen">✕</button>';
+    $('f-extra').appendChild(d);
+    if (val) { d.querySelector('.x-hex').value = val.slice(1); d.querySelector('.x-pick').value = val; }
+    toggleAdd();
+    return d;
+  }
   function updatePreview() {
-    var hex = normHex($('f-hex').value);
-    if (hex) $('f-picker').value = hex;
-    if (!famManual) $('f-familie').value = guessFamily(hex);
+    var cols = readColors();
+    if (cols[0]) $('f-picker').value = cols[0];
+    if (!famManual) $('f-familie').value = cols.length > 1 ? 'Mehrfarbig' : guessFamily(cols[0] || '');
     previewColor();
   }
-  // Vorschau-Balken: bei "Mehrfarbig" Regenbogen, sonst die eingegebene Farbe
+  // Vorschau-Balken: mehrere Farben als Abschnitte, "Mehrfarbig" ohne Farben als Regenbogen
   function previewColor() {
-    var hex = normHex($('f-hex').value);
-    $('f-preview').style.background = $('f-familie').value === 'Mehrfarbig' ? REGENBOGEN : (hex || 'transparent');
+    var cols = readColors(), fam = $('f-familie').value;
+    $('f-preview').style.background = (cols.length || fam === 'Mehrfarbig') ? swatchBg({ familie: fam, farben: cols }, true) : 'transparent';
   }
   function openForm(id) {
     editId = id || null;
@@ -362,7 +397,11 @@
     $('f-material').value = s ? s.material : 'PLA';
     $('f-variante').value = s ? (s.variante || '') : '';
     $('f-farbe').value = s ? s.farbe : '';
-    $('f-hex').value = s && s.hex ? s.hex.slice(1) : '';
+    var fl = s ? farbenOf(s) : [];
+    $('f-hex').value = fl[0] ? fl[0].slice(1) : '';
+    $('f-extra').innerHTML = '';
+    fl.slice(1, MAX_FARBEN).forEach(function (c) { addExtraRow(c); });
+    toggleAdd();
     $('f-start').value = s ? s.start : 1000;
     $('f-rest').value = s ? s.rest : '';
     $('f-vorrat').value = s ? (s.vorrat || 0) : 0;
@@ -376,16 +415,16 @@
     var hersteller = $('f-hersteller').value.trim();
     var farbe = $('f-farbe').value.trim();
     if (!hersteller && !farbe) { toast('Bitte Hersteller oder Farbname eintragen'); return; }
-    var rawHex = $('f-hex').value.trim();
-    var hex = normHex(rawHex);
-    if (rawHex && !hex) { toast('Hex-Code ungültig (z. B. #F2F0E6)'); return; }
+    var raws = rawColors();
+    for (var i = 0; i < raws.length; i++) if (raws[i] && !normHex(raws[i])) { toast('Hex-Code ungültig (z. B. #F2F0E6)'); return; }
+    var farben = readColors(), hex = farben[0] || '';
     var start = parseFloat($('f-start').value); if (!(start > 0)) start = 1000;
     var restRaw = $('f-rest').value.trim();
     var rest = restRaw === '' ? start : parseFloat(restRaw);
     if (isNaN(rest) || rest < 0) rest = 0;
     var data = {
       hersteller: hersteller, material: $('f-material').value, variante: $('f-variante').value.trim(),
-      farbe: farbe, hex: hex, familie: $('f-familie').value || guessFamily(hex),
+      farbe: farbe, hex: hex, farben: farben, familie: $('f-familie').value || guessFamily(hex),
       start: start, rest: rest, vorrat: Math.max(0, parseInt($('f-vorrat').value, 10) || 0)
     };
     if (editId) {
@@ -444,10 +483,20 @@
   $('f-save').addEventListener('click', saveForm);
   // Raute ist fest davor: eingefügter Text darf mit oder ohne "#" kommen,
   // enthaltener 6-stelliger Code wird herausgezogen, alles andere verworfen.
-  $('f-hex').addEventListener('input', function () {
-    var v = this.value, m = v.match(/#?([0-9a-fA-F]{6})(?![0-9a-fA-F])/);
-    this.value = m ? m[1] : v.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
+  $('f-hex').addEventListener('input', function () { cleanHex(this); updatePreview(); });
+  // Weitere Farben (Zeilen entstehen dynamisch, daher Events am Container)
+  $('f-extra').addEventListener('input', function (e) {
+    var r = e.target.closest('.hexrow'); if (!r) return;
+    if (e.target.classList.contains('x-hex')) { cleanHex(e.target); var h = normHex(e.target.value); if (h) r.querySelector('.x-pick').value = h; }
+    else if (e.target.classList.contains('x-pick')) { r.querySelector('.x-hex').value = e.target.value.slice(1); }
     updatePreview();
+  });
+  $('f-extra').addEventListener('click', function (e) {
+    var b = e.target.closest('.x-del'); if (!b) return;
+    b.closest('.hexrow').remove(); toggleAdd(); updatePreview();
+  });
+  $('f-addcolor').addEventListener('click', function () {
+    var d = addExtraRow(); if (d) d.querySelector('.x-hex').focus();
   });
   $('f-picker').addEventListener('input', function () { $('f-hex').value = this.value.slice(1); updatePreview(); });
   // Rollengewicht je Hersteller vorbelegen (nur solange nicht von Hand geändert)
