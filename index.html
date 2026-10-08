@@ -189,8 +189,9 @@
 (function () {
   'use strict';
   var KEY = 'filamentSpools';
-  var FAMILIEN = ['Schwarz', 'Weiß', 'Grau', 'Rot', 'Orange', 'Gelb', 'Grün', 'Blau', 'Lila', 'Braun', 'Sonstige'];
-  var FAM_FARBE = { 'Schwarz': '#111111', 'Weiß': '#f3f4f6', 'Grau': '#8b9098', 'Rot': '#e11d48', 'Orange': '#f97316', 'Gelb': '#facc15', 'Grün': '#22c55e', 'Blau': '#3b82f6', 'Lila': '#a855f7', 'Braun': '#8b5a2b', 'Sonstige': 'conic-gradient(#f43f5e,#facc15,#22c55e,#38bdf8,#a855f7,#f43f5e)' };
+  var FAMILIEN = ['Schwarz', 'Weiß', 'Grau', 'Rot', 'Orange', 'Gelb', 'Grün', 'Blau', 'Lila', 'Braun', 'Mehrfarbig', 'Sonstige'];
+  var REGENBOGEN = 'conic-gradient(#f43f5e,#facc15,#22c55e,#38bdf8,#a855f7,#f43f5e)';
+  var FAM_FARBE = { 'Schwarz': '#111111', 'Weiß': '#f3f4f6', 'Grau': '#8b9098', 'Rot': '#e11d48', 'Orange': '#f97316', 'Gelb': '#facc15', 'Grün': '#22c55e', 'Blau': '#3b82f6', 'Lila': '#a855f7', 'Braun': '#8b5a2b', 'Mehrfarbig': REGENBOGEN, 'Sonstige': '#64748b' };
   var VARIANTEN = ['Basic', 'Plus', 'Matt', 'Silk', 'HF', 'CF', 'Marmor', 'Glitzer', 'Transparent', '85A', '95A'];
 
   var spools = [];
@@ -314,7 +315,7 @@
       var vorrat = s.vorrat || 0, rollen = vorrat + (s.rest > 0 ? 1 : 0);
       return '<div class="spool' + (gesamt(s) <= 0 ? ' empty' : '') + (isOpen ? ' open' : '') + '" data-id="' + s.id + '">' +
         '<div class="spool-main" data-toggle="' + s.id + '">' +
-          '<div class="swatch" style="background:' + (s.hex || FAM_FARBE[s.familie]) + '"></div>' +
+          '<div class="swatch" style="background:' + (s.familie === 'Mehrfarbig' ? REGENBOGEN : (s.hex || FAM_FARBE[s.familie] || FAM_FARBE['Sonstige'])) + '"></div>' +
           '<div class="info">' +
             '<div class="name">' + esc(s.farbe || '(ohne Name)') + (vorrat > 0 ? '<span class="badge">' + rollen + ' Rollen</span>' : '') + '</div>' +
             '<div class="sub">' + esc(s.hersteller) + ' · ' + esc(mat) + (s.hex ? ' · ' + s.hex : '') + '</div>' +
@@ -342,9 +343,14 @@
   var famManual = false, startManual = false;
   function updatePreview() {
     var hex = normHex($('f-hex').value);
-    $('f-preview').style.background = hex || 'transparent';
     if (hex) $('f-picker').value = hex;
     if (!famManual) $('f-familie').value = guessFamily(hex);
+    previewColor();
+  }
+  // Vorschau-Balken: bei "Mehrfarbig" Regenbogen, sonst die eingegebene Farbe
+  function previewColor() {
+    var hex = normHex($('f-hex').value);
+    $('f-preview').style.background = $('f-familie').value === 'Mehrfarbig' ? REGENBOGEN : (hex || 'transparent');
   }
   function openForm(id) {
     editId = id || null;
@@ -363,7 +369,7 @@
     famManual = !!s;
     startManual = !!s;
     updatePreview();
-    if (s) $('f-familie').value = s.familie;
+    if (s) { $('f-familie').value = s.familie; previewColor(); }
     $('form-ov').classList.add('show');
   }
   function saveForm() {
@@ -451,7 +457,7 @@
     if (startManual) return;
     $('f-start').value = START_BY_HERSTELLER[this.value.trim().toLowerCase()] || 1000;
   });
-  $('f-familie').addEventListener('change', function () { famManual = true; });
+  $('f-familie').addEventListener('change', function () { famManual = true; previewColor(); });
   $('f-search').addEventListener('click', function () {
     var q = ($('f-hersteller').value + ' ' + $('f-material').value + ' ' + $('f-variante').value + ' ' + $('f-farbe').value).replace(/\s+/g, ' ').trim() + ' filament hex color code';
     window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank');
