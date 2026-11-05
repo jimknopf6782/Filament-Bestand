@@ -181,6 +181,14 @@
     <div class="sheet-actions" style="flex-direction:column">
       <button class="btn" id="exp">Daten exportieren</button>
       <button class="btn sec" id="imp">Daten importieren</button>
+    </div>
+    <p class="hint" style="margin:18px 0 8px">Google Drive: Sichert die Rollen in der Datei „filament-backup.json“ in deinem eigenen Drive. Sie wird bei jeder Sicherung überschrieben. Dabei kann Google die Kontoauswahl zeigen.</p>
+    <div class="sheet-actions" style="flex-direction:column">
+      <button class="btn" id="g-save">In Google Drive sichern</button>
+      <button class="btn sec" id="g-load">Aus Google Drive wiederherstellen</button>
+    </div>
+    <p class="hint" id="g-status" style="margin:8px 0 14px"></p>
+    <div class="sheet-actions" style="flex-direction:column">
       <button class="btn sec" id="set-close">Schließen</button>
     </div>
     <input type="file" id="imp-file" accept=".json,application/json" style="display:none">
@@ -513,7 +521,11 @@
   });
 
   /* ---------- Export / Import (alles ersetzen) ---------- */
-  $('settings-btn').addEventListener('click', function () { $('set-ov').classList.add('show'); });
+  $('settings-btn').addEventListener('click', function () {
+    $('set-ov').classList.add('show');
+    showStatus();
+    loadGsi().catch(function () {});   // Google-Bibliothek schon vorladen, damit das Anmeldefenster später sofort aufgeht
+  });
   $('set-close').addEventListener('click', function () { $('set-ov').classList.remove('show'); });
   $('exp').addEventListener('click', function () {
     // Nur die eigenen Filament-Daten sichern (andere Apps unter derselben Adresse bleiben außen vor)
@@ -539,6 +551,114 @@
     };
     r.readAsText(f);
   });
+
+  /* ---------- Sicherung in Google Drive (nur auf Knopfdruck) ---------- */
+  // Zugriff nur auf Dateien, die diese App selbst angelegt hat (Bereich drive.file).
+  var GDRIVE_CLIENT_ID = '131765507907-pft4u7tl40i1so7d5e6ph7h6eo7t5k4n.apps.googleusercontent.com';
+  var GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+  var GDRIVE_FILE = 'filament-backup.json';
+  var K_FID = 'filamentDriveFileId', K_LAST = 'filamentDriveLast';
+  var gsiPromise = null;
+
+  function loadGsi() {
+    if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+    if (!gsiPromise) gsiPromise = new Promise(function (res, rej) {
+      var s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+      s.onload = res; s.onerror = function () { gsiPromise = null; rej(new Error('offline')); };
+      document.head.appendChild(s);
+    });
+    return gsiPromise;
+  }
+  function getToken() {
+    return loadGsi().then(function () {
+      return new Promise(function (resolve, reject) {
+        var tc = google.accounts.oauth2.initTokenClient({
+          client_id: GDRIVE_CLIENT_ID, scope: GDRIVE_SCOPE,
+          callback: function (r) { if (r && r.access_token) resolve(r.access_token); else reject(new Error((r && r.error) || 'abgebrochen')); },
+          error_callback: function (e) { reject(new Error((e && e.type) || 'abgebrochen')); }
+        });
+        tc.requestAccessToken({ prompt: '' });
+      });
+    });
+  }
+  function dFetch(token, url, opt) {
+    opt = opt || {}; opt.cache = 'no-store';
+    opt.headers = Object.assign({ Authorization: 'Bearer ' + token }, opt.headers || {});
+    return fetch(url, opt).then(function (r) {
+      if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+      return r;
+    });
+  }
+  // Datei finden: erst die gemerkte ID, sonst über den Namen; null, wenn es noch keine gibt
+  function findFile(token) {
+    var byName = function () {
+      var q = encodeURIComponent("name='" + GDRIVE_FILE + "' and trashed=false");
+      return dFetch(token, 'https://www.googleapis.com/drive/v3/files?q=' + q + '&orderBy=' + encodeURIComponent('modifiedTime desc') + '&pageSize=1&fields=' + encodeURIComponent('files(id)'))
+        .then(function (r) { return r.json(); })
+        .then(function (j) { return j.files && j.files[0] ? j.files[0].id : null; });
+    };
+    var id = localStorage.getItem(K_FID);
+    if (!id) return byName();
+    return dFetch(token, 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?fields=id,trashed')
+      .then(function (r) { return r.json(); })
+      .then(function (j) { return j.trashed ? byName() : j.id; }, function (e) { if (e.status === 404) return byName(); throw e; });
+  }
+  function backupText() {
+    var d = {}; d[KEY] = localStorage.getItem(KEY) || '[]';
+    return JSON.stringify({ app: 'filament-bestand', exportedAt: new Date().toISOString(), data: d }, null, 2);
+  }
+  function showStatus() {
+    var t = localStorage.getItem(K_LAST);
+    $('g-status').textContent = t ? 'Letzte Sicherung in Google Drive: ' + new Date(t).toLocaleString('de-DE') : 'Noch nicht in Google Drive gesichert.';
+  }
+  function gBusy(on) { $('g-save').disabled = on; $('g-load').disabled = on; }
+  function gError(e) {
+    var m = String((e && e.message) || e), s = e && e.status;
+    if (m === 'offline') toast('Keine Verbindung zu Google');
+    else if (m === 'keine-datei') toast('In deinem Drive gibt es noch keine Sicherung');
+    else if (m === 'ungueltig') toast('Die Datei in Drive ist keine gültige Sicherung');
+    else if (/popup|abgebrochen|access_denied/.test(m)) toast('Anmeldung abgebrochen');
+    else if (s === 401 || s === 403) toast('Google hat den Zugriff abgelehnt. Bitte noch einmal versuchen.');
+    else toast('Fehlgeschlagen (' + m + ')');
+  }
+  function gSave() {
+    gBusy(true);
+    getToken().then(function (tok) {
+      return findFile(tok).then(function (id) {
+        var body = backupText();
+        if (id) return dFetch(tok, 'https://www.googleapis.com/upload/drive/v3/files/' + encodeURIComponent(id) + '?uploadType=media&fields=id',
+          { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: body }).then(function (r) { return r.json(); });
+        var b = 'filbnd' + Date.now();
+        var multi = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: GDRIVE_FILE, mimeType: 'application/json' }) +
+          '\r\n--' + b + '\r\nContent-Type: application/json\r\n\r\n' + body + '\r\n--' + b + '--';
+        return dFetch(tok, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+          { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body: multi }).then(function (r) { return r.json(); });
+      });
+    }).then(function (j) {
+      localStorage.setItem(K_FID, j.id); localStorage.setItem(K_LAST, new Date().toISOString());
+      showStatus(); toast('In Google Drive gesichert');
+    }).catch(gError).then(function () { gBusy(false); });
+  }
+  function gLoad() {
+    gBusy(true);
+    getToken().then(function (tok) {
+      return findFile(tok).then(function (id) {
+        if (!id) throw new Error('keine-datei');
+        return dFetch(tok, 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media')
+          .then(function (r) { return r.text(); }).then(function (t) { return { id: id, text: t }; });
+      });
+    }).then(function (res) {
+      var p, neu, list;
+      try { p = JSON.parse(res.text); neu = p.data[KEY]; list = JSON.parse(neu); } catch (e) { throw new Error('ungueltig'); }
+      if (!Array.isArray(list)) throw new Error('ungueltig');
+      var wann = p.exportedAt ? new Date(p.exportedAt).toLocaleString('de-DE') : 'unbekannt';
+      if (!confirm('Wirklich ALLE aktuellen Rollen durch die Sicherung aus Google Drive vom ' + wann + ' ersetzen (' + list.length + ' Einträge)? Das kann nicht rückgängig gemacht werden.')) return;
+      localStorage.setItem(KEY, neu); localStorage.setItem(K_FID, res.id);
+      alert('Wiederherstellung abgeschlossen. Die App lädt neu.'); location.reload();
+    }).catch(gError).then(function () { gBusy(false); });
+  }
+  $('g-save').addEventListener('click', gSave);
+  $('g-load').addEventListener('click', gLoad);
 
   load(); render();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
