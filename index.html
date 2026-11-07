@@ -330,7 +330,7 @@
   function colorLines(s) {
     var f = farbenOf(s).filter(rgbOf);
     if (!f.length) return '';
-    var rows = f.length === 1 ? [f[0], 'RGB ' + rgbOf(f[0])] : f.map(function (h, i) { return (i + 1) + ': ' + h + ' · RGB ' + rgbOf(h); });
+    var rows = f.length === 1 ? [f[0] + ' · RGB ' + rgbOf(f[0])] : f.map(function (h, i) { return (i + 1) + ': ' + h + ' · RGB ' + rgbOf(h); });
     return '<div class="sub2">' + rows.map(esc).join('<br>') + '</div>';
   }
 
