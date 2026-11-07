@@ -322,6 +322,18 @@
 
   /* ---------- Liste ---------- */
   function barClass(p) { return p < .15 ? 'low' : p < .4 ? 'mid' : ''; }
+  // Farbwerte als RGB-Text, bei mehreren Farben jede in einer eigenen Zeile
+  function rgbOf(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return '';
+    return parseInt(m[1].substr(0, 2), 16) + ', ' + parseInt(m[1].substr(2, 2), 16) + ', ' + parseInt(m[1].substr(4, 2), 16);
+  }
+  function colorLines(s) {
+    var f = farbenOf(s).filter(rgbOf);
+    if (!f.length) return '';
+    var rows = f.length === 1 ? ['RGB ' + rgbOf(f[0])] : f.map(function (h, i) { return (i + 1) + ': ' + h + ' · RGB ' + rgbOf(h); });
+    return '<div class="sub2">' + rows.map(esc).join('<br>') + '</div>';
+  }
+
   function render() {
     renderFilters();
     var list = spools.filter(function (s) { return matches(s); }).sort(function (a, b) {
@@ -343,6 +355,7 @@
           '<div class="info">' +
             '<div class="name">' + esc(s.farbe || '(ohne Name)') + (vorrat > 0 ? '<span class="badge">' + rollen + ' Rollen</span>' : '') + '</div>' +
             '<div class="sub">' + esc(s.hersteller) + ' · ' + esc(mat) + (farbenOf(s).length > 1 ? ' · ' + farbenOf(s).length + ' Farben' : (s.hex ? ' · ' + s.hex : '')) + '</div>' +
+            colorLines(s) +
             '<div class="rest"><div class="rest-line"><b>' + fmt(gesamt(s)) + ' g</b><span style="color:var(--muted)">' + (vorrat > 0 ? 'gesamt' : 'von ' + fmt(s.start) + ' g') + '</span></div>' +
             (vorrat > 0 ? '<div class="sub2">Angebrochen: ' + fmt(s.rest) + ' g · Vorrat: ' + vorrat + (vorrat === 1 ? ' Rolle' : ' Rollen') + '</div>' : '') +
             '<div class="bar"><i class="' + barClass(p) + '" style="width:' + Math.round(p * 100) + '%"></i></div></div>' +
