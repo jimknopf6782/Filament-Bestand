@@ -330,7 +330,7 @@
   function colorLines(s) {
     var f = farbenOf(s).filter(rgbOf);
     if (!f.length) return '';
-    var rows = f.length === 1 ? ['RGB ' + rgbOf(f[0])] : f.map(function (h, i) { return (i + 1) + ': ' + h + ' · RGB ' + rgbOf(h); });
+    var rows = f.length === 1 ? [f[0], 'RGB ' + rgbOf(f[0])] : f.map(function (h, i) { return (i + 1) + ': ' + h + ' · RGB ' + rgbOf(h); });
     return '<div class="sub2">' + rows.map(esc).join('<br>') + '</div>';
   }
 
@@ -354,7 +354,7 @@
           '<div class="swatch" style="background:' + swatchBg(s) + '"></div>' +
           '<div class="info">' +
             '<div class="name">' + esc(s.farbe || '(ohne Name)') + (vorrat > 0 ? '<span class="badge">' + rollen + ' Rollen</span>' : '') + '</div>' +
-            '<div class="sub">' + esc(s.hersteller) + ' · ' + esc(mat) + (farbenOf(s).length > 1 ? ' · ' + farbenOf(s).length + ' Farben' : (s.hex ? ' · ' + s.hex : '')) + '</div>' +
+            '<div class="sub">' + esc(s.hersteller) + ' · ' + esc(mat) + (farbenOf(s).length > 1 ? ' · ' + farbenOf(s).length + ' Farben' : '') + '</div>' +
             colorLines(s) +
             '<div class="rest"><div class="rest-line"><b>' + fmt(gesamt(s)) + ' g</b><span style="color:var(--muted)">' + (vorrat > 0 ? 'gesamt' : 'von ' + fmt(s.start) + ' g') + '</span></div>' +
             (vorrat > 0 ? '<div class="sub2">Angebrochen: ' + fmt(s.rest) + ' g · Vorrat: ' + vorrat + (vorrat === 1 ? ' Rolle' : ' Rollen') + '</div>' : '') +
